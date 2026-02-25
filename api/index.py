@@ -25,6 +25,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 
@@ -35,7 +36,7 @@ NEO4J_PASSWORD = os.getenv("DB_PASSWORD")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL   = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-MAX_HOPS = int(os.getenv("MAX_HOPS", "2"))   # Giảm xuống 2 cho Vercel timeout
+MAX_HOPS = int(os.getenv("MAX_HOPS", "2"))
 TOP_K    = int(os.getenv("TOP_K", "5"))
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -44,13 +45,26 @@ ai_client = OpenAI(api_key=OPENAI_API_KEY)
 driver    = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
 app = FastAPI()
+
+# CORS headers áp dụng cho mọi response
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin":  "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,   # False khi allow_origins="*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Xử lý OPTIONS preflight cho mọi route (Vercel cần điều này)
+@app.options("/{full_path:path}")
+async def preflight_handler(full_path: str):
+    return JSONResponse(content={}, headers=CORS_HEADERS)
 
 # ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
@@ -666,11 +680,11 @@ def run_pipeline(question: str, query_id: str) -> dict:
 
 @app.get("/metadata")
 async def metadata():
-    return {
+    payload = {
         "name":        "NEU Graph Agent",
         "description": "Chatbot tư vấn đào tạo dựa trên Knowledge Graph — Đại học Kinh tế Quốc dân",
-        "capabilities":       ["search", "knowledge-graph", "intent-detection", "pagerank-ranking"],
-        "supported_models":   [{"model_id": OPENAI_MODEL, "name": OPENAI_MODEL}],
+        "capabilities":     ["search", "knowledge-graph", "intent-detection", "pagerank-ranking"],
+        "supported_models": [{"model_id": OPENAI_MODEL, "name": OPENAI_MODEL}],
         "pipeline": [
             "Intent Detection (keywords, labels, negation)",
             "Seed Entity Fetch",
@@ -681,41 +695,50 @@ async def metadata():
         ],
         "status": "active",
     }
+    return JSONResponse(content=payload, headers=CORS_HEADERS)
 
 
 @app.post("/ask")
 async def ask(request: Request):
-    data      = await request.json()
-    question  = data.get("prompt", "").strip()
+    data       = await request.json()
+    question   = data.get("prompt", "").strip()
     session_id = data.get("session_id", str(uuid.uuid4()))
 
     if not question:
-        return {
-            "session_id":       session_id,
-            "status":           "error",
-            "content_markdown": "Vui lòng nhập câu hỏi.",
-        }
+        return JSONResponse(
+            content={
+                "session_id":       session_id,
+                "status":           "error",
+                "content_markdown": "Vui lòng nhập câu hỏi.",
+            },
+            headers=CORS_HEADERS,
+        )
 
     try:
         query_id = "q" + uuid.uuid4().hex[:6]
         result   = run_pipeline(question, query_id)
 
-        return {
-            "session_id":       session_id,
-            "status":           "success",
-            "content_markdown": result["generated_answer"],
-            # Metadata debug (Portal có thể bỏ qua)
-            "debug": {
-                "query_id":   result["query_id"],
-                "keywords":   result["keywords"],
-                "intent":     result["intent"],
-                "node_count": len(result["retrieved_nodes"]),
+        return JSONResponse(
+            content={
+                "session_id":       session_id,
+                "status":           "success",
+                "content_markdown": result["generated_answer"],
+                "debug": {
+                    "query_id":   result["query_id"],
+                    "keywords":   result["keywords"],
+                    "intent":     result["intent"],
+                    "node_count": len(result["retrieved_nodes"]),
+                },
             },
-        }
+            headers=CORS_HEADERS,
+        )
 
     except Exception as e:
-        return {
-            "session_id":       session_id,
-            "status":           "error",
-            "content_markdown": f"Đã xảy ra lỗi khi xử lý câu hỏi. Vui lòng thử lại.\n\n`{str(e)}`",
-        }
+        return JSONResponse(
+            content={
+                "session_id":       session_id,
+                "status":           "error",
+                "content_markdown": f"Đã xảy ra lỗi khi xử lý câu hỏi. Vui lòng thử lại.\n\n`{str(e)}`",
+            },
+            headers=CORS_HEADERS,
+        )
