@@ -1505,7 +1505,7 @@ async def metadata():
     payload = {
         "name":        "NEU Advisory Agent",
         "description": "Chatbot tư vấn đào tạo dựa trên Knowledge Graph — Đại học Kinh tế Quốc dân",
-        "capabilities":     ["search", "knowledge-graph", "intent-detection", "pagerank-ranking"],
+        "capabilities":     ["search", "knowledge-graph"],
         "supported_models": [{"model_id": OPENAI_MODEL, "name": OPENAI_MODEL}],
         "pipeline": [
             "Intent Detection (keywords, labels, negation)",
