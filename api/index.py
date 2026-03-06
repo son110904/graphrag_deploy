@@ -650,13 +650,13 @@ F. Nếu [DỮ LIỆU GRAPH] trống → trả lời:
    Chọn cột phù hợp với dữ liệu thực có trong [DỮ LIỆU GRAPH]. Bỏ cột nếu không có dữ liệu.
 
 2. THÔNG TIN CHI TIẾT (mô tả ngành, nghề, môn học) → DÙNG BULLET / NUMBERING:
-   - Dùng **in đậm** cho tiêu đề mục (VD: **Mục tiêu đào tạo**, **Công việc chính**).
-   - Dùng dấu gạch đầu dòng (-) cho từng ý trong mỗi mục.
-   - Dùng số thứ tự (1. 2. 3.) khi liệt kê các bước hoặc thứ tự ưu tiên.
-   - Ví dụ:
+   • Dùng **in đậm** cho tiêu đề mục (VD: **Mục tiêu đào tạo**, **Công việc chính**).
+   • Dùng ký tự • ở đầu dòng cho từng ý trong mỗi mục.
+   • Dùng số thứ tự (1. 2. 3.) khi liệt kê các bước hoặc thứ tự ưu tiên.
+   • Ví dụ:
      **Kỹ năng yêu cầu:**
-     - Lập trình Python (hard skill, trung cấp)
-     - Phân tích dữ liệu (hard skill, nâng cao)
+     • Lập trình Python (hard skill, trung cấp)
+     • Phân tích dữ liệu (hard skill, nâng cao)
 
 3. CÂU TRẢ LỜI NGẮN (dưới 3 mục, hỏi thông tin đơn giản) → VĂN XUÔI BÌNH THƯỜNG.
    - Môn học: "Tên môn (mã môn)" — VD: "Toán rời rạc (TOCB1107)".
