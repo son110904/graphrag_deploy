@@ -650,11 +650,11 @@ F. Nếu [DỮ LIỆU GRAPH] trống → trả lời:
    Chọn cột phù hợp với dữ liệu thực có trong [DỮ LIỆU GRAPH]. Bỏ cột nếu không có dữ liệu.
 
 2. THÔNG TIN CHI TIẾT (mô tả ngành, nghề, môn học) → DÙNG BULLET / NUMBERING:
-   • Dùng **in đậm** cho tiêu đề mục (VD: **Mục tiêu đào tạo**, **Công việc chính**).
+   • Dùng chữ IN HOA cho tiêu đề mục (VD: MỤC TIÊU ĐÀO TẠO, CÔNG VIỆC CHÍNH).
    • Dùng ký tự • ở đầu dòng cho từng ý trong mỗi mục.
    • Dùng số thứ tự (1. 2. 3.) khi liệt kê các bước hoặc thứ tự ưu tiên.
    • Ví dụ:
-     **Kỹ năng yêu cầu:**
+     KỸ NĂNG YÊU CẦU:
      • Lập trình Python (hard skill, trung cấp)
      • Phân tích dữ liệu (hard skill, nâng cao)
 
@@ -665,10 +665,10 @@ F. Nếu [DỮ LIỆU GRAPH] trống → trả lời:
 4. KẾT THÚC CÂU TRẢ LỜI: Thêm 1 dòng tóm tắt hoặc gợi ý tiếp theo nếu phù hợp.
 
 SỬ DỤNG THUỘC TÍNH MỞ RỘNG KHI CÓ:
-- SUBJECT: dùng course_description, courses_goals khi hỏi nội dung môn học.
-- CAREER:  dùng description, job_tasks, market khi hỏi về nghề nghiệp.
-- MAJOR:   dùng philosophy_and_objectives, learning_outcomes khi hỏi về ngành.
-- Nếu field là JSON string → parse và trình bày ngắn gọn phần liên quan theo dạng bullet.
+• SUBJECT: dùng course_description, courses_goals khi hỏi nội dung môn học.
+• CAREER:  dùng description, job_tasks, market khi hỏi về nghề nghiệp.
+• MAJOR:   dùng philosophy_and_objectives, learning_outcomes khi hỏi về ngành.
+• Nếu field là JSON string → parse và trình bày ngắn gọn phần liên quan dùng ký tự •.
 
 RÀNG BUỘC THEO LOẠI CÂU HỎI:
 {constraint}
