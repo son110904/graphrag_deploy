@@ -532,7 +532,7 @@ RELATIONSHIP_CONSTRAINTS = {
     ),
     ("MAJOR", "SKILL"):    (
         "MAJOR -[:MAJOR_OFFERS_SUBJECT]-> SUBJECT -[:PROVIDES]-> SKILL. "
-        "Kỹ năng đạt được từ các môn trong chương trình. Kèm tên môn (mã môn)."
+        "Kỹ năng đạt được từ các môn trong chương trình, chỉ nêu kỹ năng cứng (hard skills, là các skill có skill_type = 'hard'). Kèm tên môn (mã môn)."
     ),
     ("SKILL", "MAJOR"):    (
         "SKILL <-[:PROVIDES]- SUBJECT <-[:MAJOR_OFFERS_SUBJECT]- MAJOR. "
@@ -540,7 +540,7 @@ RELATIONSHIP_CONSTRAINTS = {
     ),
     ("CAREER", "SUBJECT"): (
         "CAREER -[:REQUIRES]-> SKILL <-[:PROVIDES]- SUBJECT. "
-        "Môn học cung cấp kỹ năng nghề yêu cầu. Kèm mã môn + kỹ năng tương ứng."
+        "Môn học cung cấp kỹ năng nghề yêu cầu, chỉ nêu kỹ năng cứng (hard skills, là các skill có skill_type = 'hard'). Kèm mã môn + kỹ năng cứng tương ứng."
     ),
     ("MAJOR", "SUBJECT"):  (
         "MAJOR -[:MAJOR_OFFERS_SUBJECT]-> SUBJECT. "
