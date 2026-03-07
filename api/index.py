@@ -528,7 +528,7 @@ RELATIONSHIP_CONSTRAINTS = {
     ),
     ("CAREER", "SKILL"):   (
         "CAREER -[:REQUIRES]-> SKILL và SUBJECT -[:PROVIDES]-> SKILL. "
-        "Trả lời kỹ năng cần + môn cung cấp kỹ năng đó."
+        "Trả lời kỹ năng cần thiết, chỉ nêu kỹ năng cứng (hard skills, là các skill có skill_type = 'hard') + môn cung cấp kỹ năng đó."
     ),
     ("MAJOR", "SKILL"):    (
         "MAJOR -[:MAJOR_OFFERS_SUBJECT]-> SUBJECT -[:PROVIDES]-> SKILL. "
