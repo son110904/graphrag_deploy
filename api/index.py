@@ -1528,6 +1528,33 @@ def _build_record(
 def run_pipeline(question: str, query_id: str) -> dict:
     return kg_ask(driver, ai_client, question, query_id=query_id)
 
+
+# ── CTĐT redirect helper ───────────────────────────────────────────────────────
+_CTDT_PATTERN = re.compile(
+    r"(?:xem|tìm|tải|download|file|chương trình đào tạo|ctđt|ct đt)\s*"
+    r"(?:file\s*)?(?:ctđt|ct\s*đt|chương trình đào tạo)?\s*(?:ngành|của ngành)?\s*"
+    r"(.+?)(?:\s*(?:ở đâu|tại đâu|tải ở đâu|xem ở đâu|download ở đâu)|\s*\?|$)",
+    re.IGNORECASE | re.UNICODE,
+)
+
+def detect_ctdt_question(question: str) -> str | None:
+    """
+    Nếu câu hỏi hỏi về 'xem file CTĐT ngành X ở đâu' (hoặc biến thể),
+    trả về tên ngành X. Ngược lại trả về None.
+    """
+    q = question.strip()
+    # Điều kiện cần: phải có từ khoá CTĐT/chương trình đào tạo
+    if not re.search(r"ctđt|ct\s*đt|chương trình đào tạo", q, re.IGNORECASE | re.UNICODE):
+        return None
+    # Điều kiện cần: phải hỏi "ở đâu / tại đâu" hoặc "xem / tìm / tải"
+    if not re.search(r"ở đâu|tại đâu|xem|tìm|tải|download|file", q, re.IGNORECASE | re.UNICODE):
+        return None
+    m = _CTDT_PATTERN.search(q)
+    if m:
+        major_name = m.group(1).strip(" ?")
+        return major_name if major_name else "ngành bạn quan tâm"
+    return "ngành bạn quan tâm"
+
 # FASTAPI ENDPOINTS
 
 
@@ -1569,6 +1596,29 @@ async def ask(request: Request):
                 "session_id":       session_id,
                 "status":           "error",
                 "content_markdown": "Vui lòng nhập câu hỏi.",
+            },
+            headers=CORS_HEADERS,
+        )
+
+    # ── Kiểm tra câu hỏi xem file CTĐT ──────────────────────────────────────────
+    ctdt_major = detect_ctdt_question(question)
+    if ctdt_major is not None:
+        answer = (
+            f"Để xem thêm thì hãy vào trang "
+            f"[courses.neu.edu.vn](https://courses.neu.edu.vn) "
+            f"và tìm ngành **{ctdt_major}** nhé! 📚"
+        )
+        return JSONResponse(
+            content={
+                "session_id":       session_id,
+                "status":           "success",
+                "content_markdown": answer,
+                "debug": {
+                    "query_id":   "ctdt_redirect",
+                    "keywords":   [ctdt_major],
+                    "intent":     {"asked_label": "CTDT_REDIRECT"},
+                    "node_count": 0,
+                },
             },
             headers=CORS_HEADERS,
         )
