@@ -1552,6 +1552,11 @@ def detect_ctdt_question(question: str) -> str | None:
     m = _CTDT_PATTERN.search(q)
     if m:
         major_name = m.group(1).strip(" ?")
+        # Loại bỏ các từ thừa ở cuối: "thì", "thì xem", "thì tải", "thì ở đâu"...
+        major_name = re.sub(
+            r"\s+(?:thì|thì xem|thì tải|thì download|thì ở đâu|thì tại đâu)\s*$",
+            "", major_name, flags=re.IGNORECASE | re.UNICODE,
+        ).strip(" ?")
         return major_name if major_name else "ngành bạn quan tâm"
     return "ngành bạn quan tâm"
 
