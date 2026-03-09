@@ -544,8 +544,10 @@ RELATIONSHIP_CONSTRAINTS = {
     ),
     ("MAJOR", "SUBJECT"):  (
         "MAJOR -[:MAJOR_OFFERS_SUBJECT]-> SUBJECT. "
-        "Môn học thuộc chương trình ngành, kèm mã môn, học kỳ (semester), "
-        "loại (required_type: required=bắt buộc, elective=tự chọn)."
+        "Môn học thuộc chương trình ngành. "
+        "PHẢI lấy đúng giá trị field 'semester' từ [DỮ LIỆU GRAPH] cho từng môn — KHÔNG được tự điền hay suy đoán. "
+        "Nếu 'semester' là null thì ghi 'Chưa xác định'. "
+        "Kèm mã môn (field 'code'), loại môn (required_type: required=bắt buộc, elective=tự chọn)."
     ),
     ("SKILL", "CAREER"):   (
         "SKILL <-[:REQUIRES]- CAREER. Nghề nghiệp yêu cầu kỹ năng đó."
@@ -1030,10 +1032,13 @@ def _add_node_and_paths(rec, all_nodes: list, all_paths: list):
         "hops":  rec["hops"],
     }
     # Extended props từ targeted query
-    for field in ("course_description", "semester", "required_type"):
-        val = rec.get(field)
-        if val is not None:
-            node[field] = val
+    # course_description chỉ thêm khi có giá trị (tránh noise)
+    val = rec.get("course_description")
+    if val is not None:
+        node["course_description"] = val
+    # semester và required_type LUÔN thêm vào (kể cả null) để LLM không tự bịa
+    node["semester"]      = rec.get("semester")
+    node["required_type"] = rec.get("required_type")
 
     all_nodes.append(node)
 
