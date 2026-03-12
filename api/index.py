@@ -524,7 +524,18 @@ Relationships (đồng bộ script1 v2, script2 v4):
 RELATIONSHIP_CONSTRAINTS = {
     ("MAJOR", "CAREER"):   (
         "MAJOR -[:LEADS_TO]-> CAREER. "
-        "Liệt kê Career mà Major dẫn đến. KHÔNG đề cập SUBJECT trừ khi được hỏi."
+        "Liệt kê Career mà Major dẫn đến. KHÔNG đề cập SUBJECT trừ khi được hỏi. "
+        "QUAN TRỌNG: Chỉ liệt kê nghề nghiệp thực tế (vị trí công việc, chức danh trong tổ chức). "
+        "TUYỆT ĐỐI KHÔNG liệt kê các mục bắt đầu bằng: "
+        "'Cử nhân', 'Kỹ sư', 'Thạc sĩ', 'Tiến sĩ', 'Bác sĩ', 'Bachelor', 'Master', 'Engineer' — "
+        "đây là danh hiệu học vị/bằng cấp, không phải vị trí công việc. "
+        "Ví dụ SAI: 'Cử nhân Công nghệ thông tin', 'Kỹ sư phần mềm (danh hiệu)'. "
+        "Ví dụ ĐÚNG: 'Chuyên viên phân tích dữ liệu', 'Lập trình viên', 'Nhà khoa học dữ liệu'. "
+        "ĐỊNH DẠNG BẮT BUỘC: Trình bày dạng VĂN XUÔI, mỗi nghề một đoạn ngắn theo mẫu: "
+        "'Có thể làm việc tại [field_name] với vai trò [tên nghề] — [short_description hoặc role_in_organization từ description]. "
+        "Công việc chính bao gồm: [1-2 nhiệm vụ tiêu biểu từ job_tasks].' "
+        "Nếu không có description hoặc job_tasks thì chỉ ghi: 'Có thể làm [tên nghề] trong lĩnh vực [field_name].' "
+        "KHÔNG dùng bảng markdown cho câu hỏi loại này."
     ),
     ("CAREER", "SKILL"):   (
         "CAREER -[:REQUIRES]-> SKILL và SUBJECT -[:PROVIDES]-> SKILL. "
@@ -630,9 +641,9 @@ F. Nếu [DỮ LIỆU GRAPH] trống → trả lời:
    Khi liệt kê từ 3 mục trở lên (môn học, kỹ năng, nghề nghiệp,...), BẮT BUỘC trình bày dạng bảng.
 
    Ví dụ bảng môn học:
-   | STT | Tên môn | Mã môn | Học kỳ | Loại |
-   |-----|---------|--------|--------|------|
-   | 1 | Toán rời rạc | TOCB1107 | 1 | Bắt buộc |
+   | STT | Tên môn | Mã môn |
+   |-----|---------|--------|
+   | 1 | Toán rời rạc | TOCB1107 |
 
    Ví dụ bảng kỹ năng:
    | STT | Kỹ năng | Loại | Mức độ yêu cầu |
@@ -708,6 +719,10 @@ ABBREVIATION_MAP: dict[str, list[str]] = {
     "kt":   ["kế toán", "kinh tế"],
     "mkt":  ["marketing"],
     "hr":   ["quản trị nhân lực", "nhân sự"],
+    "mis":  ["hệ thống thông tin quản lý", "management information systems"],
+    "fintech": ["công nghệ tài chính"],
+    "ecom": ["thương mại điện tử"],
+    "acct": ["kế toán"],
 }
 
 
