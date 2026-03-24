@@ -52,17 +52,6 @@ app.add_middleware(
 async def preflight_handler(full_path: str):
     return JSONResponse(content={}, headers=CORS_HEADERS)
 
-RELATIONSHIP_WEIGHTS: dict[str, int] = {
-    "PROVIDES":              3,
-    "REQUIRES":              3,
-    "TEACH":                 2,
-    "LEADS_TO":              2,
-    "MAJOR_OFFERS_SUBJECT":  1,
-    "REQUIRES_PERSONALITY":  2,   # dự phòng — Career→Personality
-    "CULTIVATES":            1,   # dự phòng — Subject→Personality
-    "SUITS_MAJOR":           3,   # MỚI — Personality→Major (trực tiếp từ suitable_fields)
-    "SUITS_CAREER":          3,   # MỚI — Personality→Career (trực tiếp từ suitable_fields)
-}
 
 COMMUNITY_LEVELS: dict[str, dict] = {
 
@@ -71,7 +60,6 @@ COMMUNITY_LEVELS: dict[str, dict] = {
         "level":       1,
         "name":        "Hệ sinh thái Đào tạo & Nghề nghiệp",
         "node_labels": {"MAJOR", "SUBJECT", "SKILL", "CAREER", "TEACHER", "PERSONALITY"},
-        "rel_weights": RELATIONSHIP_WEIGHTS,
         "purpose": (
             "Trả lời câu hỏi chiến lược: xu hướng đào tạo, liên kết toàn diện "
             "giữa chương trình học và thị trường lao động."
@@ -84,10 +72,6 @@ COMMUNITY_LEVELS: dict[str, dict] = {
         "name":        "Cụm Học thuật (Academic Cluster)",
         # community_L2: MAJOR=2, SUBJECT=2, TEACHER=0 — không đồng nhất, dùng label filter
         "node_labels": {"MAJOR", "SUBJECT", "TEACHER"},
-        "rel_weights": {
-            "TEACH":                2,
-            "MAJOR_OFFERS_SUBJECT": 1,
-        },
         "purpose": (
             "Trả lời về chương trình ngành, môn học, giảng viên phụ trách. "
             "Kết nối Teacher ↔ Subject ↔ Major."
@@ -100,11 +84,6 @@ COMMUNITY_LEVELS: dict[str, dict] = {
         "name":        "Cụm Năng lực & Việc làm (Career Alignment Cluster)",
         # community_L2: SKILL=0, CAREER=1, SUBJECT=2 — không đồng nhất, dùng label filter
         "node_labels": {"SKILL", "CAREER", "SUBJECT", "PERSONALITY"},
-        "rel_weights": {
-            "PROVIDES":     3,
-            "REQUIRES":     3,
-            "SUITS_CAREER": 3,   # Personality→Career
-        },
         "purpose": (
             "Kết nối đầu ra môn học (Subject→Skill) với yêu cầu thực tế (Career→Skill). "
             "Trả lời về kỹ năng cần thiết, môn học liên quan đến nghề nghiệp. "
@@ -118,12 +97,6 @@ COMMUNITY_LEVELS: dict[str, dict] = {
         "name":        "Cụm Tính cách MBTI & Ngành/Nghề (Personality Fit Cluster)",
         # community_L2: PERSONALITY=3, CAREER=1, MAJOR=2 — dùng label filter
         "node_labels": {"PERSONALITY", "CAREER", "MAJOR"},
-        "rel_weights": {
-            "SUITS_MAJOR":          3,   # Personality→Major (primary)
-            "SUITS_CAREER":         3,   # Personality→Career (primary)
-            "LEADS_TO":             2,   # Major→Career (bridge)
-            "REQUIRES_PERSONALITY": 2,   # dự phòng nếu có edge cũ
-        },
         "purpose": (
             "Gợi ý ngành học và nghề nghiệp phù hợp với loại tính cách MBTI. "
             "Kích hoạt khi câu hỏi nhắc tới MBTI code (ESTP, ENTP...), "
@@ -137,11 +110,6 @@ COMMUNITY_LEVELS: dict[str, dict] = {
         "name":        "Cộng đồng theo Ngành (Major-centric)",
         # community_L3: SUBJECT=0, TEACHER=1, SKILL=2 — không đồng nhất, dùng label filter
         "node_labels": {"SUBJECT", "TEACHER", "SKILL"},
-        "rel_weights": {
-            "MAJOR_OFFERS_SUBJECT": 1,
-            "TEACH":                2,
-            "PROVIDES":             3,
-        },
         "purpose": (
             "Chi tiết lộ trình một ngành cụ thể: môn học, giảng viên, kỹ năng đầu ra. "
             "Kích hoạt khi câu hỏi nhắc tới Major Code cụ thể."
@@ -153,10 +121,6 @@ COMMUNITY_LEVELS: dict[str, dict] = {
         "level":       3,
         "name":        "Cộng đồng theo Kỹ năng (Skill-centric)",
         "node_labels": {"SUBJECT", "CAREER"},
-        "rel_weights": {
-            "PROVIDES": 3,
-            "REQUIRES": 3,
-        },
         "purpose": (
             "Giá trị của một kỹ năng cụ thể: môn nào dạy + nghề nào yêu cầu. "
             "Kích hoạt khi câu hỏi nhắc tới Skill cụ thể."
@@ -281,16 +245,11 @@ def run_louvain_and_write(driver, community_def: dict) -> dict:
             pass
 
         node_labels = list(community_def["node_labels"])
-        rel_proj    = {
-            rtype: {"type": rtype, "orientation": "UNDIRECTED",
-                    "properties": {"weight": {"defaultValue": w}}}
-            for rtype, w in community_def["rel_weights"].items()
-        }
 
         try:
             session.run(
-                "CALL gds.graph.project($gname, $nlabels, $rproj)",
-                gname=graph_name, nlabels=node_labels, rproj=rel_proj,
+                "CALL gds.graph.project($gname, $nlabels, '*')",
+                gname=graph_name, nlabels=node_labels,
             )
         except Exception as e:
             stats["error"] = f"GDS project error: {e}"
@@ -300,7 +259,7 @@ def run_louvain_and_write(driver, community_def: dict) -> dict:
         try:
             session.run(
                 f"CALL gds.louvain.write('{graph_name}', "
-                f"{{relationshipWeightProperty: 'weight', writeProperty: '{prop_key}'}})"
+                f"{{writeProperty: '{prop_key}'}})"
             )
             r = session.run(
                 f"MATCH (n) WHERE n.{prop_key} IS NOT NULL RETURN count(n) AS cnt"
@@ -1964,7 +1923,6 @@ def _build_record(
         "algorithm": {
             "community_detection": "Louvain weighted (GDS) + rule-based fallback",
             "traversal":           algorithm_desc,
-            "weights":             RELATIONSHIP_WEIGHTS,
         },
     }
 
@@ -1977,13 +1935,7 @@ def run_pipeline(question: str, query_id: str) -> dict:
     return kg_ask(driver, ai_client, question, query_id=query_id)
 
 
-# ── CTĐT redirect helper ───────────────────────────────────────────────────────
-_CTDT_PATTERN = re.compile(
-    r"(?:xem|tìm|tải|download|file|chương trình đào tạo|ctđt|ct đt)\s*"
-    r"(?:file\s*)?(?:ctđt|ct\s*đt|chương trình đào tạo)?\s*(?:ngành|của ngành)?\s*"
-    r"(.+?)(?:\s*(?:ở đâu|tại đâu|tải ở đâu|xem ở đâu|download ở đâu)|\s*\?|$)",
-    re.IGNORECASE | re.UNICODE,
-)
+
 
 def detect_ctdt_question(question: str) -> str | None:
     """
