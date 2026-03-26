@@ -1,7 +1,3 @@
-"""
-api/index.py 
-"""
-
 import os
 import re
 import json
@@ -170,6 +166,12 @@ INTENT_TO_COMMUNITY: dict[tuple, str] = {
 _PERSONALITY_KW_PATTERN = re.compile(
     r"tính cách|phẩm chất|personality|hướng nội|hướng ngoại|"
     r"cẩn thận|sáng tạo|lãnh đạo|đồng cảm|kiên nhẫn|tự tin|"
+    r"điềm tĩnh|sâu sắc|kín đáo|nội tâm|tập trung|thận trọng|"
+    r"suy tư|ôn hòa|trầm mặc|tinh tế|logic|phân tích|lý trí|"
+    r"thấu cảm|ấm áp|nhân văn|nề nếp|kế hoạch|tổ chức|ngăn nắp|"
+    r"linh hoạt|tự do|ngẫu hứng|thoải mái|phóng khoáng|"
+    r"chiến lược|tầm nhìn|lý tưởng|đổi mới|tò mò|khám phá|"
+    r"kỷ luật|trách nhiệm|quyết đoán|"
     r"hợp\s+(với\s+)?(nghề|ngành)|phù hợp\s+(với\s+)?(tôi|mình|người)|"
     r"\b(INTJ|INTP|ENTJ|ENTP|INFJ|INFP|ENFJ|ENFP"
     r"|ISTJ|ISFJ|ESTJ|ESFJ|ISTP|ISFP|ESTP|ESFP)\b",
@@ -782,44 +784,19 @@ _MBTI_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-# Map MBTI code → keywords để mở rộng query khi DB chưa có SUITS_MAJOR/SUITS_CAREER
-# (fallback khi graph traversal không tìm được gì qua edge trực tiếp)
-MBTI_KEYWORD_FALLBACK: dict[str, list[str]] = {
-    "INTJ": ["chiến lược", "phân tích", "độc lập", "tầm nhìn"],
-    "INTP": ["phân tích", "logic", "nghiên cứu", "lý luận"],
-    "ENTJ": ["lãnh đạo", "chiến lược", "quyết đoán", "quản lý"],
-    "ENTP": ["sáng tạo", "đổi mới", "lập luận", "linh hoạt"],
-    "INFJ": ["đồng cảm", "tầm nhìn", "sáng tạo", "kiên nhẫn"],
-    "INFP": ["sáng tạo", "đồng cảm", "lý tưởng", "linh hoạt"],
-    "ENFJ": ["lãnh đạo", "đồng cảm", "giao tiếp", "tổ chức"],
-    "ENFP": ["sáng tạo", "nhiệt huyết", "giao tiếp", "linh hoạt"],
-    "ISTJ": ["kỷ luật", "cẩn thận", "trách nhiệm", "tổ chức"],
-    "ISFJ": ["đồng cảm", "kiên nhẫn", "cẩn thận", "hỗ trợ"],
-    "ESTJ": ["tổ chức", "kỷ luật", "lãnh đạo", "quyết đoán"],
-    "ESFJ": ["giao tiếp", "đồng cảm", "hỗ trợ", "tổ chức"],
-    "ISTP": ["phân tích", "thực tế", "kỹ thuật", "linh hoạt"],
-    "ISFP": ["sáng tạo", "thực tế", "đồng cảm", "linh hoạt"],
-    "ESTP": ["năng động", "thực tế", "quyết đoán", "lãnh đạo"],
-    "ESFP": ["năng động", "giao tiếp", "linh hoạt", "thực tế"],
-}
 
 
 def expand_mbti(question: str) -> tuple[str, list[str]]:
     """
-    Nhận diện MBTI code trong câu hỏi.
-    Trả về (expanded_question, extra_keywords).
-    - extra_keywords = [mbti_code] để query trực tiếp node PERSONALITY trong DB.
-    - Nếu không tìm thấy node MBTI, fallback keywords sẽ được dùng trong expand_abbreviations.
+    Nhận diện MBTI code tường minh (INTJ, ESTP...) trong câu hỏi.
+    Trả về (expanded_question, [mbti_code]) để query trực tiếp PERSONALITY node.
     """
     m = _MBTI_PATTERN.search(question)
     if not m:
         return question, []
-
     mbti_code = m.group(1).upper()
-    # Keyword chính = MBTI code (để hit node PERSONALITY trong DB)
-    extra = [mbti_code]
-    hint  = f"[GHI CHÚ: {mbti_code} là loại tính cách MBTI]"
-    return question + "  " + hint, extra
+    hint = f"[GHI CHÚ: {mbti_code} là loại tính cách MBTI]"
+    return question + "  " + hint, [mbti_code]
 
 
 ABBREVIATION_MAP: dict[str, list[str]] = {
@@ -898,18 +875,40 @@ def extract_query_intent(ai_client: OpenAI, question: str) -> dict:
         "  - Hỏi thông tin giảng viên (email, học hàm, dạy môn gì) → asked=TEACHER\n"
         "  - Hỏi thông tin ngành học (chương trình, chuẩn đầu ra, mục tiêu) → asked=MAJOR\n"
         "  - Hỏi kỹ năng → asked=SKILL\n"
-        "  - Hỏi về loại tính cách MBTI (ESTP/ENTP/...), personality fit, "
-        "    hoặc 'hướng nội/hướng ngoại hợp nghề gì', 'tôi là INTJ học ngành gì' → asked=PERSONALITY\n"
-        "  - Nếu đề cập MBTI code nhưng hỏi về nghề → mentioned=PERSONALITY, asked=CAREER\n"
-        "  - Nếu đề cập MBTI code nhưng hỏi về ngành → mentioned=PERSONALITY, asked=MAJOR\n"
-        "  - Keywords: luôn giữ nguyên MBTI code (ESTP, ENTP...) làm keyword chính\n\n"
+        "  - Hỏi về loại tính cách MBTI, personality fit, đặc điểm tính cách → asked=PERSONALITY\n"
+        "  - Nếu đề cập tính cách/MBTI nhưng hỏi về nghề → mentioned=PERSONALITY, asked=CAREER\n"
+        "  - Nếu đề cập tính cách/MBTI nhưng hỏi về ngành → mentioned=PERSONALITY, asked=MAJOR\n"
+        "  - Keywords: luôn giữ nguyên MBTI code (ESTP, ENTP...) nếu có\n\n"
+        "──────────────────────────────────────────\n"
+        "TRƯỜNG ĐẶC BIỆT: mbti_dimensions\n"
+        "──────────────────────────────────────────\n"
+        "Nếu câu hỏi mô tả đặc điểm tính cách bằng từ ngữ tự nhiên (KHÔNG phải MBTI code),\n"
+        "hãy suy luận các MBTI dimension letters phù hợp:\n\n"
+        "  4 cặp dimension:\n"
+        "    E / I  — năng lượng:  hướng ngoại (E) vs hướng nội, điềm tĩnh, kín đáo, suy tư (I)\n"
+        "    S / N  — nhận thức:   thực tế, chi tiết, quy trình (S) vs sáng tạo, tầm nhìn, trực giác (N)\n"
+        "    T / F  — quyết định:  logic, phân tích, lý trí (T) vs đồng cảm, ấm áp, cảm xúc (F)\n"
+        "    J / P  — lối sống:    kế hoạch, ngăn nắp, kỷ luật (J) vs linh hoạt, ngẫu hứng, tự do (P)\n\n"
+        "  Quy tắc:\n"
+        "  - Chỉ trả về dimension mà câu hỏi có dấu hiệu rõ ràng. Không đoán mò.\n"
+        "  - Nếu câu hỏi có cả 2 chiều đối lập (E lẫn I), bỏ cả 2, không trả về dimension đó.\n"
+        "  - Nếu câu hỏi có MBTI code tường minh (INTJ, ESTP...), để mbti_dimensions = []\n"
+        "    và đưa code đó vào keywords thay vào đó.\n"
+        "  - Nếu không có dấu hiệu tính cách nào, để mbti_dimensions = [].\n\n"
+        "  Ví dụ:\n"
+        "  'Em hướng nội thì học ngành gì'        → mbti_dimensions: ['I']\n"
+        "  'Người logic và kỷ luật hợp nghề gì'   → mbti_dimensions: ['T', 'J']\n"
+        "  'Tôi sáng tạo, thích tầm nhìn xa'      → mbti_dimensions: ['N']\n"
+        "  'Tôi vừa hướng nội vừa hướng ngoại'    → mbti_dimensions: []  (xung đột)\n"
+        "  'Tôi là INTJ học ngành gì'              → mbti_dimensions: [], keywords: ['INTJ']\n\n"
         "Trả về JSON:\n"
         "{\n"
         '  "keywords": ["tên thực thể để tìm trong KG"],\n'
         '  "mentioned_labels": ["MAJOR|SUBJECT|SKILL|CAREER|TEACHER|PERSONALITY"],\n'
         '  "asked_label": "MAJOR|SUBJECT|SKILL|CAREER|TEACHER|PERSONALITY|UNKNOWN",\n'
         '  "negated_keywords": ["thực thể bị phủ định"],\n'
-        '  "is_comparison": false\n'
+        '  "is_comparison": false,\n'
+        '  "mbti_dimensions": ["I","T"]  // các dimension letters được suy luận, hoặc []\n'
         "}\n"
     )
     response = ai_client.chat.completions.create(
@@ -928,7 +927,31 @@ def extract_query_intent(ai_client: OpenAI, question: str) -> dict:
         "asked_label":      parsed.get("asked_label", "UNKNOWN"),
         "negated_keywords": parsed.get("negated_keywords", []),
         "is_comparison":    parsed.get("is_comparison", False),
+        "mbti_dimensions":  [
+            d for d in parsed.get("mbti_dimensions", [])
+            if d in ("E", "I", "S", "N", "T", "F", "J", "P")
+        ],
     }
+
+
+def resolve_mbti_codes_from_dimensions(dimensions: list[str]) -> list[str]:
+    """
+    Từ list dimension letters (e.g. ['I', 'T']) trả về tất cả MBTI codes
+    chứa TẤT CẢ các dimensions đó.
+
+    Ví dụ:
+      ['I']       → [INTJ, INTP, INFJ, INFP, ISTJ, ISFJ, ISTP, ISFP]
+      ['I', 'T']  → [INTJ, INTP, ISTJ, ISTP]
+      ['T', 'J']  → [INTJ, ISTJ, ENTJ, ESTJ]
+    """
+    if not dimensions:
+        return []
+    all_types = [
+        "INTJ","INTP","ENTJ","ENTP","INFJ","INFP","ENFJ","ENFP",
+        "ISTJ","ISFJ","ESTJ","ESFJ","ISTP","ISFP","ESTP","ESFP",
+    ]
+    required = set(dimensions)
+    return [t for t in all_types if required.issubset(set(t))]
 
 
 def get_relationship_constraint(intent: dict) -> str:
@@ -1786,7 +1809,7 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
         return _build_record(query_id, question, answer, [], agg_intent,
                              agg_nodes, [], "aggregation")
 
-    # ── Bước 0b: Expand MBTI code → keyword ──────────────────────────────────
+    # ── Bước 0b: Expand MBTI code tường minh → keyword ──────────────────────
     expanded_question, mbti_keywords = expand_mbti(question)
     if mbti_keywords:
         print(f"  [mbti] {mbti_keywords}")
@@ -1796,35 +1819,40 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
     if abbrev_keywords:
         print(f"  [abbrev] {abbrev_keywords}")
 
-    # ── Bước 1: Extract intent ────────────────────────────────────────────────
+    # ── Bước 1: Extract intent (LLM) — trả về cả mbti_dimensions ─────────────
     intent = extract_query_intent(ai_client, expanded_question)
     intent["keywords"] = list(dict.fromkeys(
         intent["keywords"] + mbti_keywords + abbrev_keywords
     ))
 
-    # ── Bước 1b: Override intent nếu có MBTI keyword (LLM hay bỏ sót) ────────
+    # ── Bước 1b: Resolve MBTI codes ──────────────────────────────────────────
+    # Ưu tiên 1: MBTI code tường minh từ regex expand_mbti
+    # Ưu tiên 2: dimensions do LLM suy luận từ từ đồng nghĩa tính cách
+    dimensions = intent.get("mbti_dimensions", [])
+
     if mbti_keywords:
-        mbti_code = mbti_keywords[0].upper()   # e.g. "ISTP"
-        # Nếu LLM không nhận ra PERSONALITY, tự gán
+        all_mbti_keywords = mbti_keywords
+        print(f"  [mbti override] source=explicit code={mbti_keywords[0].upper()}")
+    elif dimensions:
+        all_mbti_keywords = resolve_mbti_codes_from_dimensions(dimensions)
+        print(f"  [mbti override] source=llm-dimensions dims={dimensions} "
+              f"→ {len(all_mbti_keywords)} codes: {all_mbti_keywords}")
+    else:
+        all_mbti_keywords = []
+
+    if all_mbti_keywords:
         if "PERSONALITY" not in intent.get("mentioned_labels", []):
             intent["mentioned_labels"] = ["PERSONALITY"] + [
                 l for l in intent.get("mentioned_labels", [])
                 if l != "PERSONALITY"
             ]
-        # Xác định asked: nếu câu hỏi về ngành/nghề với MBTI thì giữ asked gốc
-        # nhưng nếu asked=UNKNOWN hoặc chỉ hỏi về MBTI thì set PERSONALITY
         if intent.get("asked_label") == "UNKNOWN":
             intent["asked_label"] = "PERSONALITY"
-        # Đảm bảo MBTI code là keyword đầu tiên để targeted query ưu tiên
-        if mbti_code not in intent["keywords"]:
-            intent["keywords"].insert(0, mbti_code)
-        else:
-            # Đưa mbti_code lên đầu
-            intent["keywords"] = [mbti_code] + [
-                k for k in intent["keywords"] if k != mbti_code
-            ]
-        print(f"  [mbti override] code={mbti_code} "
-              f"mentioned={intent['mentioned_labels']} asked={intent['asked_label']}")
+        existing_kws = [k for k in intent["keywords"]
+                        if k.upper() not in {c.upper() for c in all_mbti_keywords}]
+        intent["keywords"] = all_mbti_keywords + existing_kws
+        print(f"  [mbti override] mentioned={intent['mentioned_labels']} "
+              f"asked={intent['asked_label']}")
     keywords = intent["keywords"]
     print(f"  Keywords: {keywords}")
     print(f"  Intent: mentioned={intent['mentioned_labels']} "
