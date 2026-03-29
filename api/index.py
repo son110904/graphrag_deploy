@@ -2144,10 +2144,10 @@ async def metadata():
         ],
         "status": "active",
         "sample_prompts": [
-            "Môn Trí tuệ nhân tạo dạy những kiến thức gì?",
-            "Học công nghệ thông tin ở NEU có ưu điểm gì không?",
             "Tôi có thế mạnh về ngoại ngữ và muốn làm việc trong môi trường quốc tế thì nên học ngành gì tại NEU?",
             "Tôi thích tự kinh doanh, khởi nghiệp sau khi ra trường thì nên học ngành gì tại NEU?",
+            "Môn Trí tuệ nhân tạo dạy những kiến thức gì?",
+            "Học công nghệ thông tin ở NEU có ưu điểm gì không?",
         ],
     }
     return JSONResponse(content=payload, headers=CORS_HEADERS)
