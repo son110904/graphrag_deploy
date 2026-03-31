@@ -25,8 +25,8 @@ MAX_HOPS = int(os.getenv("MAX_HOPS", "3"))
 # ──────────────────────────────────────────────────────────────────────────────
 
 EXCLUDED_SUBJECT_CODES = {
-    "LLNL1105", "LLNL1106", "LLNL1107", "LLDL1102", "LLTT1101",
-    "KHMI1101", "KHMA1101", "LUCS1129",
+    "llnl1105", "llnl1106", "llnl1107", "lldl1102", "lltt1101",
+    "khmi1101", "khma1101", "lucs1129",
 }
 EXCLUDED_SUBJECT_NAMES_PATTERNS = re.compile(
     r"tri\s*[eé]t\s*h[oọ]c\s*m[aá]c[\s\-]*l[eê][- ]?nin"
@@ -165,7 +165,9 @@ COMMUNITY_LEVELS: dict[str, dict] = {
         "purpose": (
             "Gợi ý ngành học và nghề nghiệp phù hợp với loại tính cách MBTI. "
             "Kích hoạt khi câu hỏi nhắc tới MBTI code (ESTP, ENTP...), "
-            "'tính cách', 'hướng nội/hướng ngoại', 'hợp với nghề gì'."
+            "'tính cách', 'hướng nội/hướng ngoại', 'hợp với nghề gì'. "
+            "CŨNG xử lý câu hỏi ngược: 'tính cách gì hợp làm/học X' — "
+            "tìm PERSONALITY phù hợp với ngành/lĩnh vực X qua suitable_fields hoặc SUITS_MAJOR/SUITS_CAREER."
         ),
     },
 
@@ -760,13 +762,18 @@ RELATIONSHIP_CONSTRAINTS = {
     ),
     ("CAREER", "PERSONALITY"): (
         "PERSONALITY -[:SUITS_CAREER]-> CAREER (chiều ngược). "
-        "Liệt kê loại tính cách MBTI phù hợp với nghề này. "
-        "Kèm mô tả ngắn tại sao phù hợp dựa vào structure/strengths của MBTI type đó."
+        "Liệt kê loại tính cách MBTI phù hợp với nghề/lĩnh vực này. "
+        "Kèm mô tả ngắn tại sao phù hợp dựa vào structure/strengths của MBTI type đó. "
+        "ĐỊNH DẠNG BẮT BUỘC: bảng markdown | MBTI | Tên tính cách | Lý do phù hợp |. "
+        "Sau bảng, thêm đoạn tóm tắt: những đặc điểm tính cách chung của người phù hợp với lĩnh vực này."
     ),
     ("MAJOR", "PERSONALITY"): (
         "PERSONALITY -[:SUITS_MAJOR]-> MAJOR (chiều ngược). "
-        "Liệt kê loại tính cách MBTI phù hợp với ngành học này. "
-        "Kèm tên MBTI code và lý do ngắn gọn."
+        "Liệt kê loại tính cách MBTI phù hợp với ngành học hoặc lĩnh vực này tại NEU. "
+        "Nếu câu hỏi đề cập lĩnh vực rộng (VD: IT, CNTT), lấy TẤT CẢ personality có "
+        "suitable_fields khớp với lĩnh vực đó (field_name chứa từ khóa liên quan). "
+        "ĐỊNH DẠNG BẮT BUỘC: bảng markdown | MBTI | Tên tính cách | Lý do phù hợp |. "
+        "Sau bảng, thêm đoạn tóm tắt: những đặc điểm tính cách chung của người phù hợp với lĩnh vực này."
     ),
     ("SUBJECT", "PERSONALITY"): (
         "SUBJECT -[:CULTIVATES]-> PERSONALITY (dự phòng). "
@@ -1065,6 +1072,186 @@ def resolve_mbti_codes_from_dimensions(dimensions: list[str]) -> list[str]:
     return [t for t in all_types if required.issubset(set(t))]
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# PHẦN 6b: INTENT POST-PROCESSING RULES
+# ══════════════════════════════════════════════════════════════════════════════
+
+_COMPARE_CUE_PATTERN = re.compile(
+    r"\b(vs|versus)\b|so sánh|phân vân|giữa.+và|nên chọn bên nào|nên chọn cái nào",
+    re.IGNORECASE | re.UNICODE,
+)
+_CAREER_CUE_PATTERN = re.compile(
+    r"nghề nào|làm gì|ra trường làm gì|nên chọn nghề|nên theo nghề|hợp làm|hợp nghề",
+    re.IGNORECASE | re.UNICODE,
+)
+_ASK_PERSONALITY_PATTERN = re.compile(
+    r"tính cách (gì|nào)|mbti (gì|nào)|loại tính cách",
+    re.IGNORECASE | re.UNICODE,
+)
+_MAJOR_CUE_PATTERN = re.compile(
+    r"\bngành\b|chuyên ngành|chương trình đào tạo|học ngành",
+    re.IGNORECASE | re.UNICODE,
+)
+_SKILL_CUE_PATTERN = re.compile(
+    r"\bsql\b|database|cơ sở dữ liệu|dữ liệu|data",
+    re.IGNORECASE | re.UNICODE,
+)
+_NEGATED_CAREER_PATTERN = re.compile(
+    r"(?:không|ko|chẳng|không muốn).{0,20}\b(sale|marketing)\b",
+    re.IGNORECASE | re.UNICODE,
+)
+_CAREER_ALIAS_HINTS: list[tuple[re.Pattern, list[str]]] = [
+    (re.compile(r"\b(tester|qa|quality assurance|kiểm thử)\b", re.IGNORECASE | re.UNICODE),
+     ["kiểm thử", "tester", "quality assurance"]),
+    (re.compile(r"\b(developer|dev|lập trình viên)\b", re.IGNORECASE | re.UNICODE),
+     ["lập trình viên", "developer"]),
+]
+_DOMAIN_HINTS: list[tuple[re.Pattern, list[str], list[str]]] = [
+    (re.compile(r"\b(cntt|it|công nghệ thông tin)\b", re.IGNORECASE | re.UNICODE),
+     ["công nghệ thông tin"], ["MAJOR"]),
+    (re.compile(r"\b(database|cơ sở dữ liệu)\b", re.IGNORECASE | re.UNICODE),
+     ["database"], ["SKILL"]),
+    (re.compile(r"\bsql\b", re.IGNORECASE | re.UNICODE),
+     ["sql"], ["SKILL"]),
+]
+
+# Map pattern → field_name để inject field_context vào intent
+# Dùng khi câu hỏi là "tính cách gì hợp làm X" → cần filter PERSONALITY theo lĩnh vực X
+_FIELD_CONTEXT_HINTS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\b(cntt|it|công nghệ thông tin|lập trình|phần mềm|kỹ thuật phần mềm|hệ thống thông tin)\b",
+                re.IGNORECASE | re.UNICODE), "Công nghệ thông tin"),
+    (re.compile(r"\b(kinh tế|tài chính|kế toán|ngân hàng|kinh doanh|quản trị|marketing)\b",
+                re.IGNORECASE | re.UNICODE), "Kinh tế - Quản trị"),
+    (re.compile(r"\b(data|dữ liệu|phân tích dữ liệu|khoa học dữ liệu)\b",
+                re.IGNORECASE | re.UNICODE), "Khoa học dữ liệu"),
+    (re.compile(r"\b(giáo dục|sư phạm|giảng dạy|đào tạo)\b",
+                re.IGNORECASE | re.UNICODE), "Giáo dục"),
+    (re.compile(r"\b(y tế|bác sĩ|y khoa|dược|chăm sóc sức khỏe)\b",
+                re.IGNORECASE | re.UNICODE), "Y tế - Sức khỏe"),
+]
+
+
+def _unique_keep_order(values: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for v in values:
+        sv = str(v).strip()
+        if not sv:
+            continue
+        key = sv.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(sv)
+    return out
+
+
+def apply_intent_rules(question: str, intent: dict) -> dict:
+    """
+    Hậu xử lý intent để ổn định cho câu hỏi dài/ngữ cảnh mơ hồ.
+    Không thay thế LLM, chỉ vá các case hay sai:
+    - So sánh nghề (tester vs developer...)
+    - Câu có tính cách + skill nhưng chưa hỏi rõ ngành/nghề
+    - Câu hỏi "tính cách gì hợp làm IT"
+    """
+    q = question.strip()
+    q_lower = q.lower()
+
+    keywords = _unique_keep_order([*intent.get("keywords", [])])
+    mentioned = [str(x).strip().upper() for x in intent.get("mentioned_labels", []) if str(x).strip()]
+    mentioned = _unique_keep_order(mentioned)
+    asked = str(intent.get("asked_label", "UNKNOWN")).upper()
+    negated = _unique_keep_order([*intent.get("negated_keywords", [])])
+    is_comp = bool(intent.get("is_comparison", False))
+
+    # Inject thêm keyword/label domain.
+    for pat, kws, labels in _DOMAIN_HINTS:
+        if pat.search(q):
+            keywords.extend(kws)
+            mentioned.extend(labels)
+
+    # Nhận diện job aliases để tăng recall query nghề.
+    has_direct_career_alias = False
+    for pat, kws in _CAREER_ALIAS_HINTS:
+        if pat.search(q):
+            has_direct_career_alias = True
+            keywords.extend(kws)
+            if "CAREER" not in mentioned:
+                mentioned.append("CAREER")
+
+    # Bổ sung phủ định nghề phổ biến (sale/marketing) khi LLM bỏ sót.
+    for m in _NEGATED_CAREER_PATTERN.finditer(q):
+        neg_kw = m.group(1).strip()
+        if neg_kw not in negated:
+            negated.append(neg_kw)
+
+    # Phát hiện so sánh
+    if _COMPARE_CUE_PATTERN.search(q):
+        is_comp = True
+
+    has_personality_signal = "PERSONALITY" in mentioned or _PERSONALITY_KW_PATTERN.search(q)
+
+    # Rule 1: câu hỏi ngược "tính cách gì hợp làm/học X"
+    if _ASK_PERSONALITY_PATTERN.search(q):
+        asked = "PERSONALITY"
+        # Inject field_context nếu câu hỏi đề cập lĩnh vực cụ thể (IT, kinh tế,...)
+        for pat, field_name in _FIELD_CONTEXT_HINTS:
+            if pat.search(q):
+                intent["field_context"] = field_name
+                break
+
+    # Rule 2: so sánh giữa 2 nghề => asked = CAREER.
+    if is_comp and has_direct_career_alias:
+        asked = "CAREER"
+
+    # Rule 3: câu mơ hồ nhưng có dấu hiệu nghề + tính cách/skill => hỏi nghề.
+    if asked == "UNKNOWN":
+        if _CAREER_CUE_PATTERN.search(q):
+            asked = "CAREER"
+        elif has_personality_signal and (_SKILL_CUE_PATTERN.search(q) or bool(negated)):
+            asked = "CAREER"
+        elif _MAJOR_CUE_PATTERN.search(q):
+            asked = "MAJOR"
+
+    # Rule 4: nếu user vừa nói personality vừa hỏi nghề/ngành, ưu tiên theo câu hỏi.
+    # NGOẠI LỆ QUAN TRỌNG: Nếu câu hỏi hỏi rõ "tính cách gì/nào" → GIỮ NGUYÊN asked=PERSONALITY
+    if asked == "PERSONALITY":
+        is_asking_personality_explicitly = bool(_ASK_PERSONALITY_PATTERN.search(q))
+        if is_asking_personality_explicitly:
+            pass  # Giữ asked=PERSONALITY, chỉ inject field_context để biết cần filter theo lĩnh vực
+        elif _CAREER_CUE_PATTERN.search(q) and "CAREER" in mentioned:
+            asked = "CAREER"
+        elif _MAJOR_CUE_PATTERN.search(q) and "MAJOR" in mentioned and "CAREER" not in mentioned:
+            asked = "MAJOR"
+
+    # Sắp thứ tự mentioned để targeted query đi đúng hướng hơn.
+    if asked == "CAREER":
+        if is_comp:
+            priority = ["CAREER", "SKILL", "MAJOR", "PERSONALITY", "SUBJECT", "TEACHER"]
+        else:
+            priority = ["SKILL", "MAJOR", "PERSONALITY", "CAREER", "SUBJECT", "TEACHER"]
+    elif asked == "MAJOR":
+        priority = ["PERSONALITY", "SKILL", "CAREER", "MAJOR", "SUBJECT", "TEACHER"]
+    elif asked == "PERSONALITY":
+        if re.search(r"hợp làm|hợp nghề|làm\s+\w+", q_lower, re.IGNORECASE):
+            priority = ["CAREER", "MAJOR", "PERSONALITY", "SKILL", "SUBJECT", "TEACHER"]
+        else:
+            priority = ["MAJOR", "CAREER", "PERSONALITY", "SKILL", "SUBJECT", "TEACHER"]
+    else:
+        priority = ["PERSONALITY", "SKILL", "MAJOR", "CAREER", "SUBJECT", "TEACHER"]
+
+    mentioned_set = set(mentioned)
+    mentioned = [lbl for lbl in priority if lbl in mentioned_set]
+    mentioned.extend([lbl for lbl in mentioned_set if lbl not in mentioned])
+
+    intent["keywords"] = _unique_keep_order(keywords)
+    intent["mentioned_labels"] = mentioned
+    intent["asked_label"] = asked if asked in {"MAJOR", "SUBJECT", "SKILL", "CAREER", "TEACHER", "PERSONALITY", "UNKNOWN"} else "UNKNOWN"
+    intent["negated_keywords"] = _unique_keep_order(negated)
+    intent["is_comparison"] = is_comp
+    return intent
+
+
 def get_relationship_constraint(intent: dict) -> str:
     mentioned = intent.get("mentioned_labels", [])
     asked     = intent.get("asked_label", "UNKNOWN")
@@ -1072,6 +1259,19 @@ def get_relationship_constraint(intent: dict) -> str:
 
     if is_comp and "MAJOR" in mentioned:
         return RELATIONSHIP_CONSTRAINTS.get(("MAJOR", "MAJOR"), "")
+
+    # So sánh 2 nghề
+    if is_comp and (asked == "CAREER" or "CAREER" in mentioned):
+        return (
+            "So sánh 2 nghề nghiệp được nêu trong câu hỏi dựa trên dữ liệu graph. "
+            "BẮT BUỘC gồm 4 phần: "
+            "1) Mô tả ngắn từng nghề (description/role). "
+            "2) Công việc chính từng nghề (job_tasks). "
+            "3) Cơ hội/triển vọng (market). "
+            "4) Ngành học đề xuất cho từng nghề (major_codes hoặc recommended_majors trong DB). "
+            "Cuối cùng kết luận nên ưu tiên nghề nào dựa trên tính cách/ưu tiên user nêu trong câu hỏi. "
+            "Tuyệt đối không dùng kiến thức ngoài graph."
+        )
 
     for m in ([mentioned[0]] if mentioned else []) + mentioned:
         key = (m, asked)
@@ -1387,7 +1587,7 @@ TARGETED_QUERIES: dict[tuple[str, str], str] = {
                null AS semester, null AS required_type, null AS course_description
         ORDER BY n.name LIMIT 20
     """,
-    # Major → MBTI (ngành này hợp tính cách nào)
+    # Major → MBTI (ngành này hợp tính cách nào) — từ cạnh SUITS_MAJOR
     ("MAJOR", "PERSONALITY"): """
         MATCH (n:PERSONALITY)-[:SUITS_MAJOR]->(start:MAJOR)
         WHERE toLower(start.name) CONTAINS toLower($kw) OR start.code = $kw
@@ -1395,6 +1595,19 @@ TARGETED_QUERIES: dict[tuple[str, str], str] = {
                ['SUITS_MAJOR'] AS rel_types,
                [start.name, n.name] AS node_names,
                1 AS hops,
+               null AS semester, null AS required_type, null AS course_description
+        ORDER BY n.name LIMIT 20
+    """,
+    # Lĩnh vực → MBTI: tìm tất cả PERSONALITY có suitable_fields chứa lĩnh vực $kw
+    # Dùng khi câu hỏi là "tính cách gì hợp làm IT" — keyword là tên lĩnh vực chứ không phải ngành
+    ("FIELD", "PERSONALITY"): """
+        MATCH (n:PERSONALITY)
+        WHERE n.suitable_fields IS NOT NULL
+          AND toLower(n.suitable_fields) CONTAINS toLower($kw)
+        RETURN n.name AS name, labels(n)[0] AS label, null AS code,
+               ['suitable_fields_match'] AS rel_types,
+               [n.name] AS node_names,
+               0 AS hops,
                null AS semester, null AS required_type, null AS course_description
         ORDER BY n.name LIMIT 20
     """,
@@ -1632,6 +1845,67 @@ def multihop_traversal_community_aware(
             if all_nodes:
                 print(f"  [mbti fallback] Found PERSONALITY node for {mbti_kws}")
 
+    # ── Phase 1c: Field-context PERSONALITY lookup ────────────────────────────
+    # Khi câu hỏi là "tính cách gì hợp làm IT" → asked=PERSONALITY, field_context="Công nghệ thông tin"
+    # Cần tìm tất cả PERSONALITY có suitable_fields chứa lĩnh vực đó
+    field_context = (intent or {}).get("field_context")
+    if asked_label == "PERSONALITY" and field_context:
+        field_query = TARGETED_QUERIES.get(("FIELD", "PERSONALITY"))
+        if field_query:
+            _FIELD_ALIASES: dict[str, list[str]] = {
+                "Công nghệ thông tin": [
+                    "Công nghệ thông tin", "Information Technology", "CNTT", "IT",
+                    "công nghệ", "technology", "phần mềm", "software",
+                ],
+                "Kinh tế - Quản trị": [
+                    "Kinh tế", "Quản trị", "Economics", "Business", "Management",
+                    "Tài chính", "Finance", "Kế toán", "Accounting",
+                ],
+                "Khoa học dữ liệu": [
+                    "Khoa học dữ liệu", "Data Science", "Data", "dữ liệu",
+                    "phân tích dữ liệu", "Data Analytics",
+                ],
+                "Giáo dục": ["Giáo dục", "Education", "sư phạm", "đào tạo"],
+                "Y tế - Sức khỏe": ["Y tế", "Health", "y khoa", "dược"],
+            }
+            aliases = _FIELD_ALIASES.get(field_context, [field_context])
+
+            with driver.session() as session:
+                rows = []
+                for alias_kw in aliases:
+                    try:
+                        found = list(session.run(field_query, kw=alias_kw))
+                        rows.extend(found)
+                        if found:
+                            print(f"  [field_ctx] alias='{alias_kw}' → {len(found)} hits")
+                    except Exception as e:
+                        print(f"  [field_ctx] WARNING alias='{alias_kw}': {e}")
+
+                seen_fc: set[str] = set()
+                for rec in rows:
+                    if rec.get("name") not in seen_fc:
+                        seen_fc.add(rec.get("name", ""))
+                        _add_node_and_paths(rec, all_nodes, all_paths)
+                if rows:
+                    print(f"  [field_ctx] total ({field_context}) → {len(seen_fc)} personality nodes")
+
+        # Cũng tìm MAJOR thuộc lĩnh vực đó để làm context cho LLM
+        _intent_kws = (intent or {}).get("keywords", [])
+        major_kws = [kw for kw in _intent_kws if kw.lower() in (
+            "công nghệ thông tin", "it", "cntt", "kinh tế", "tài chính", "data", "dữ liệu"
+        )]
+        if not major_kws:
+            major_kws = [field_context.split()[0].lower()] if field_context else []
+        major_query = TARGETED_QUERIES.get(("MAJOR", "PERSONALITY"))
+        if major_query and major_kws:
+            with driver.session() as session:
+                for kw in major_kws:
+                    try:
+                        for rec in session.run(major_query, kw=kw):
+                            _add_node_and_paths(rec, all_nodes, all_paths)
+                    except Exception as e:
+                        print(f"  [field_ctx_major] WARNING: {e}")
+
     # ── Phase 2: BFS label-scoped ─────────────────────────────────────────────
     # Dùng allowed_labels filter, KHÔNG filter theo community number
     # (vì MAJOR=2, SUBJECT=2, TEACHER=0 tại L2 — không đồng nhất)
@@ -1748,6 +2022,25 @@ def multihop_traversal_community_aware(
              "['SUITS_MAJOR'] AS rel_types, [p.name, n.name] AS node_names, 1 AS hops, "
              "null AS semester, null AS required_type, null AS course_description "
              "LIMIT 30"),
+
+            # Bridge ngược: MAJOR → PERSONALITY (khi hỏi "tính cách gì hợp làm/học X")
+            # Dùng khi seed_names chứa MAJOR nodes → tìm PERSONALITY suits những MAJOR đó
+            ("L2_PERSONALITY_FIT", "PERSONALITY",
+             "MATCH (n:PERSONALITY)-[:SUITS_MAJOR]->(m:MAJOR) "
+             "WHERE m.name IN $names "
+             "RETURN n.name AS name, 'PERSONALITY' AS label, null AS code, "
+             "['SUITS_MAJOR'] AS rel_types, [m.name, n.name] AS node_names, 1 AS hops, "
+             "null AS semester, null AS required_type, null AS course_description "
+             "LIMIT 20"),
+
+            # Bridge ngược qua CAREER: CAREER → PERSONALITY (khi seed là CAREER trong lĩnh vực IT)
+            ("L2_PERSONALITY_FIT", "PERSONALITY",
+             "MATCH (n:PERSONALITY)-[:SUITS_CAREER]->(c:CAREER) "
+             "WHERE c.name IN $names "
+             "RETURN n.name AS name, 'PERSONALITY' AS label, null AS code, "
+             "['SUITS_CAREER'] AS rel_types, [c.name, n.name] AS node_names, 1 AS hops, "
+             "null AS semester, null AS required_type, null AS course_description "
+             "LIMIT 20"),
         ]
         seed_names = list({n["name"] for n in all_nodes if n.get("name")})[:20]
 
@@ -1833,6 +2126,22 @@ def generate_answer(
             "Đây là các môn bắt buộc chung mọi ngành — không cần tư vấn riêng.]"
         )
 
+    # Nhắc LLM filter theo lĩnh vực khi câu hỏi là "tính cách gì hợp làm X"
+    field_context_hint = ""
+    field_context = intent.get("field_context")
+    if field_context and intent.get("asked_label") == "PERSONALITY":
+        field_context_hint = (
+            f"\n[HƯỚNG DẪN ĐẶC BIỆT — LĨNH VỰC: {field_context}]: "
+            f"Câu hỏi hỏi tính cách phù hợp với lĩnh vực '{field_context}'. "
+            f"Từ [DỮ LIỆU GRAPH], CHỈ liệt kê các PERSONALITY node có suitable_fields "
+            f"chứa lĩnh vực '{field_context}' hoặc đã được liên kết (SUITS_MAJOR/SUITS_CAREER) "
+            f"với ngành/nghề thuộc lĩnh vực '{field_context}'. "
+            f"Với mỗi tính cách, giải thích ngắn gọn TẠI SAO phù hợp với lĩnh vực này "
+            f"(dựa vào strengths/structure trong node PERSONALITY). "
+            f"ĐỊNH DẠNG: bảng markdown | MBTI | Tên tính cách | Lý do phù hợp |, "
+            f"sau đó thêm đoạn tóm tắt đặc điểm chung.]"
+        )
+
     response = ai_client.chat.completions.create(
         model=OPENAI_MODEL,
         messages=[
@@ -1841,13 +2150,21 @@ def generate_answer(
                 f"Câu hỏi: {question}\n\n"
                 f"[DỮ LIỆU GRAPH]:\n{context}"
                 f"{no_data_hint}"
-                f"{excluded_hint}\n\n"
+                f"{excluded_hint}"
+                f"{field_context_hint}\n\n"
                 "Trả lời CHỈ dùng tên/code từ [DỮ LIỆU GRAPH]:"
             )},
         ],
         temperature=0,
     )
-    return response.choices[0].message.content.strip()
+    raw = response.choices[0].message.content.strip()
+
+    # Post-process: đảm bảo mỗi bullet • luôn bắt đầu trên dòng mới
+    # Xử lý trường hợp LLM trả về "text • item" liền nhau không xuống dòng
+    fixed = re.sub(r'(?<!\n)\s*•\s*', '\n• ', raw)
+    # Dọn dẹp khoảng trắng thừa đầu dòng (giữ indent tối đa 4 space)
+    fixed = re.sub(r'\n {5,}•', '\n    •', fixed)
+    return fixed.strip()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1950,16 +2267,20 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
     intent["keywords"] = list(dict.fromkeys(
         intent["keywords"] + mbti_keywords + abbrev_keywords
     ))
+    # Lần 1: apply rules trước MBTI resolve (để vá labels/asked sớm)
+    intent = apply_intent_rules(question, intent)
 
     # ── Bước 1b: Resolve MBTI codes ──────────────────────────────────────────
-    # Ưu tiên 1: MBTI code tường minh từ regex expand_mbti
+    # Ưu tiên 1: MBTI code tường minh (INTJ, ESTP...) từ regex expand_mbti
     # Ưu tiên 2: dimensions do LLM suy luận từ từ đồng nghĩa tính cách
     dimensions = intent.get("mbti_dimensions", [])
 
     if mbti_keywords:
         all_mbti_keywords = mbti_keywords
+        # Explicit code → dùng trực tiếp, bỏ qua dimensions
         print(f"  [mbti override] source=explicit code={mbti_keywords[0].upper()}")
     elif dimensions:
+        # LLM suy luận dimensions → expand thành MBTI codes
         all_mbti_keywords = resolve_mbti_codes_from_dimensions(dimensions)
         print(f"  [mbti override] source=llm-dimensions dims={dimensions} "
               f"→ {len(all_mbti_keywords)} codes: {all_mbti_keywords}")
@@ -1967,18 +2288,22 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
         all_mbti_keywords = []
 
     if all_mbti_keywords:
+        mbti_code = all_mbti_keywords[0].upper()
+        # Đảm bảo PERSONALITY có trong mentioned_labels
         if "PERSONALITY" not in intent.get("mentioned_labels", []):
             intent["mentioned_labels"] = ["PERSONALITY"] + [
                 l for l in intent.get("mentioned_labels", [])
                 if l != "PERSONALITY"
             ]
+        # Nếu asked=UNKNOWN → set PERSONALITY
         if intent.get("asked_label") == "UNKNOWN":
             intent["asked_label"] = "PERSONALITY"
+        # Inject tất cả MBTI codes vào keywords (để traversal query từng cái)
         existing_kws = [k for k in intent["keywords"]
                         if k.upper() not in {c.upper() for c in all_mbti_keywords}]
         intent["keywords"] = all_mbti_keywords + existing_kws
-        print(f"  [mbti override] mentioned={intent['mentioned_labels']} "
-              f"asked={intent['asked_label']}")
+    # Lần 2: apply rules sau MBTI resolve (để sắp xếp lại mentioned theo MBTI)
+    intent = apply_intent_rules(question, intent)
     keywords = intent["keywords"]
     print(f"  Keywords: {keywords}")
     print(f"  Intent: mentioned={intent['mentioned_labels']} "
