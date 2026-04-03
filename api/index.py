@@ -308,12 +308,12 @@ def format_admission_answer(question: str, programs: list[dict]) -> str:
         if want_diem and not want_chitieu:
             if diem_str is None:
                 return f"- **{ten}** (mã {ma}): chương trình này chưa cập nhật điểm chuẩn"
-            return f"- **{ten}** (mã {ma}): điểm chuẩn 2025 là **{diem_str}**"
+            return f"- **{ten}** (mã {ma}): điểm chuẩn 2026 là **{diem_str}**"
         if want_chitieu and not want_diem:
             return f"- **{ten}** (mã {ma}): chỉ tiêu **{ct} sinh viên**"
         # Hỏi cả hai hoặc tổng quát
         diem_part = f"**{diem_str}**" if diem_str is not None else "chưa cập nhật"
-        return f"- **{ten}** (mã {ma}): chỉ tiêu **{ct} sinh viên**, điểm chuẩn 2025: {diem_part}"
+        return f"- **{ten}** (mã {ma}): chỉ tiêu **{ct} sinh viên**, điểm chuẩn 2026: {diem_part}"
 
     if len(programs) == 1:
         p = programs[0]
@@ -325,13 +325,13 @@ def format_admission_answer(question: str, programs: list[dict]) -> str:
         if want_diem and not want_chitieu:
             if diem_str is None:
                 return f"Chương trình **{ten}** (mã ngành {ma}) chưa cập nhật điểm chuẩn."
-            return f"Chương trình **{ten}** (mã ngành {ma}) có điểm chuẩn 2025 là **{diem_str}**."
+            return f"Chương trình **{ten}** (mã ngành {ma}) có điểm chuẩn 2026 là **{diem_str}**."
         if want_chitieu and not want_diem:
-            return f"Chương trình **{ten}** (mã ngành {ma}) có chỉ tiêu tuyển sinh 2025 là **{ct} sinh viên**."
+            return f"Chương trình **{ten}** (mã ngành {ma}) có chỉ tiêu tuyển sinh 2026 là **{ct} sinh viên**."
         # Hỏi cả hai hoặc tổng quát
         diem_part = f"**{diem_str}**" if diem_str is not None else "chưa cập nhật"
         return (f"Chương trình **{ten}** (mã ngành {ma}): "
-                f"chỉ tiêu **{ct} sinh viên**, điểm chuẩn 2025: {diem_part}.")
+                f"chỉ tiêu **{ct} sinh viên**, điểm chuẩn 2026: {diem_part}.")
 
     # Nhiều chương trình → liệt kê văn xuôi
     lines = ["Dưới đây là thông tin tuyển sinh các chương trình phù hợp:"]
