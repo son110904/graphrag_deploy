@@ -15,4 +15,4 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "index:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["uvicorn", "api.index:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
