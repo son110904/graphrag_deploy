@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
     networks: [neu_net]
     ports:
-      - "8019:8001"
+      - "8018:8001"
     environment:
       DB_URL: "neo4j+s://bdfc7297.databases.neo4j.io:7687"
       DB_USER: "bdfc7297"
