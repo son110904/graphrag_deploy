@@ -4,51 +4,21 @@ networks:
   neu_net:
     driver: bridge
 
-volumes:
-  neo4j_data:
-  neo4j_logs:
-  neo4j_plugins:
-
 services:
-
-  neo4j:
-    image: neo4j:5.18-community
-    container_name: neu_neo4j
-    restart: unless-stopped
-    networks: [neu_net]
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD}"
-      NEO4J_PLUGINS: '["apoc"]'
-      NEO4J_dbms_security_procedures_unrestricted: "apoc.*"
-      NEO4J_dbms_security_procedures_allowlist: "apoc.*"
-      NEO4J_dbms_memory_heap_initial__size: "512m"
-      NEO4J_dbms_memory_heap_max__size: "1g"
-      NEO4J_dbms_memory_pagecache_size: "512m"
-    volumes:
-      - neo4j_data:/data
-      - neo4j_logs:/logs
-      - neo4j_plugins:/plugins
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
-      interval: 30s
-      timeout: 20s
-      retries: 10
-      start_period: 120s 
   api:
     build:
       context: .
+      dockerfile: Dockerfile
     container_name: neu_api
     restart: unless-stopped
     networks: [neu_net]
     ports:
       - "8000:8000"
     environment:
-      DB_URL: "bolt://neo4j:7687"
-      DB_USER: "neo4j"
-      DB_PASSWORD: "${NEO4J_PASSWORD}"
+      DB_URL: "neo4j+s://bdfc7297.databases.neo4j.io:7687"
+      DB_USER: "bdfc7297"
+      DB_PASSWORD: "${DB_PASSWORD}"
+      DB_DATABASE: "bdfc7297"          
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       OPENAI_MODEL: "${OPENAI_MODEL}"
       MINIO_ENDPOINT: "${MINIO_ENDPOINT}"
@@ -59,6 +29,4 @@ services:
       MINIO_BASE_FOLDER: "${MINIO_BASE_FOLDER}"
       MAX_HOPS: "${MAX_HOPS}"
       TOP_K: "${TOP_K}"
-    depends_on:
-      neo4j:
-        condition: service_healthy
+      MAX_WORKERS: "${MAX_WORKERS}"
