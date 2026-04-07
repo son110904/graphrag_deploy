@@ -1,7 +1,7 @@
 version: "3.9"
 
 networks:
-  neu_net:
+  neu_app_net:
     driver: bridge
 
 services:
@@ -11,7 +11,7 @@ services:
       dockerfile: Dockerfile
     container_name: neu_api
     restart: unless-stopped
-    networks: [neu_net]
+    networks: [neu_app_net]
     ports:
       - "8018:8001"
     environment:
