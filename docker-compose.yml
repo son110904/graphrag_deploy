@@ -15,8 +15,8 @@ services:
     ports:
       - "8018:8000"
     environment:
-      DB_URL: "neo4j+s://bdfc7297.databases.neo4j.io:7687"
-      DB_USER: "bdfc7297"
+      DB_URL: "neo4j://101.96.66.232:8083"
+      DB_USER: "neo4j"
       DB_PASSWORD: "${DB_PASSWORD}"
       DB_DATABASE: "bdfc7297"          
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
