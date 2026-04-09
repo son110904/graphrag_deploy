@@ -1448,9 +1448,16 @@ def extract_query_intent(ai_client: OpenAI, question: str) -> dict:
             {"role": "user",   "content": f"Phân tích: {question}"},
         ],
         temperature=0,
-        response_format={"type": "json_object"},
     )
-    parsed = json.loads(response.choices[0].message.content)
+    raw_content = response.choices[0].message.content
+    # Ollama/local models may wrap JSON in markdown fences — strip them
+    clean = re.sub(r"```(?:json)?\s*|\s*```", "", raw_content).strip()
+    try:
+        parsed = json.loads(clean)
+    except json.JSONDecodeError:
+        # Fallback: extract first JSON object from response
+        m = re.search(r"\{.*\}", clean, re.DOTALL)
+        parsed = json.loads(m.group(0)) if m else {}
     return {
         "keywords":         parsed.get("keywords", []),
         "mentioned_labels": parsed.get("mentioned_labels", []),
