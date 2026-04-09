@@ -18,8 +18,8 @@ load_dotenv()
 NEO4J_URI      = os.getenv("DB_URL")
 NEO4J_USERNAME = os.getenv("DB_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("DB_PASSWORD")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL   = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL   = os.getenv("OPENAI_MODEL", "gpt-oss:120b")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "https://research.neu.edu.vn/ollama/v1")
 
 MAX_HOPS = int(os.getenv("MAX_HOPS", "3"))
 # ──────────────────────────────────────────────────────────────────────────────
@@ -504,7 +504,7 @@ def filter_excluded_subjects(nodes: list[dict], exclude: bool) -> list[dict]:
     return result
 
 # Module-level clients (reuse giữa các invocations trên cùng instance)
-ai_client = OpenAI(api_key=OPENAI_API_KEY)
+ai_client = OpenAI(api_key="ollama", base_url=OLLAMA_BASE_URL)
 driver    = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
 app = FastAPI()
@@ -2852,7 +2852,7 @@ def _build_record(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# RUN PIPELINE 
+# RUN PIPELINE — wrapper cho Vercel endpoint
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_pipeline(question: str, query_id: str) -> dict:
