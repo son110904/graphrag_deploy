@@ -2852,7 +2852,7 @@ def _build_record(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# RUN PIPELINE — wrapper cho Vercel endpoint
+# RUN PIPELINE 
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_pipeline(question: str, query_id: str) -> dict:
