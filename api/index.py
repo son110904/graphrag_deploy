@@ -18,8 +18,8 @@ load_dotenv()
 NEO4J_URI      = os.getenv("DB_URL")
 NEO4J_USERNAME = os.getenv("DB_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("DB_PASSWORD")
-OPENAI_MODEL   = os.getenv("OPENAI_MODEL", "gpt-oss:120b")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "https://research.neu.edu.vn/ollama/v1")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL   = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 MAX_HOPS = int(os.getenv("MAX_HOPS", "3"))
 # ──────────────────────────────────────────────────────────────────────────────
@@ -504,7 +504,7 @@ def filter_excluded_subjects(nodes: list[dict], exclude: bool) -> list[dict]:
     return result
 
 # Module-level clients (reuse giữa các invocations trên cùng instance)
-ai_client = OpenAI(api_key="ollama", base_url=OLLAMA_BASE_URL)
+ai_client = OpenAI(api_key=OPENAI_API_KEY)
 driver    = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
 app = FastAPI()
@@ -1448,16 +1448,9 @@ def extract_query_intent(ai_client: OpenAI, question: str) -> dict:
             {"role": "user",   "content": f"Phân tích: {question}"},
         ],
         temperature=0,
+        response_format={"type": "json_object"},
     )
-    raw_content = response.choices[0].message.content
-    # Ollama/local models may wrap JSON in markdown fences — strip them
-    clean = re.sub(r"```(?:json)?\s*|\s*```", "", raw_content).strip()
-    try:
-        parsed = json.loads(clean)
-    except json.JSONDecodeError:
-        # Fallback: extract first JSON object from response
-        m = re.search(r"\{.*\}", clean, re.DOTALL)
-        parsed = json.loads(m.group(0)) if m else {}
+    parsed = json.loads(response.choices[0].message.content)
     return {
         "keywords":         parsed.get("keywords", []),
         "mentioned_labels": parsed.get("mentioned_labels", []),
@@ -2859,7 +2852,7 @@ def _build_record(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# RUN PIPELINE — wrapper cho Vercel endpoint
+# RUN PIPELINE 
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_pipeline(question: str, query_id: str) -> dict:
