@@ -296,10 +296,90 @@ def format_admission_answer(question: str, programs: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def handle_admission_question(question: str) -> str | None:
+def _extract_admission_term(question: str) -> tuple[str, str]:
+    """
+    Trích xuất (term_clean, ma_nganh_7chu) từ câu hỏi tuyển sinh.
+    Returns: (term, code_7digit_or_empty)
+    """
+    # Tìm mã ngành 7 chữ số tường minh
+    code_match = re.search(r"\b(7\d{6})\b", question)
+    code = code_match.group(1) if code_match else ""
+
+    CONTEXT_PAT = re.compile(
+        r"điểm\s*chuẩn|điểm\s*đầu\s*vào|chỉ\s*tiêu|tuyển\s*sinh"
+        r"|chương\s*trình\s*đào\s*tạo|chương\s*trình|đào\s*tạo"
+        r"|ngành\s*học|ngành|ctđt|năm\s*\d{4}|\b20\d{2}\b"
+        r"|bao\s*nhiêu|của\s*trường|tại\s*neu|tại\s*trường"
+        r"|\blà\s*bao\s*nhiêu\b|\blà\s*gì\b|\blà\b"
+        r"|\bnhư\s*thế\s*nào\b|\bthế\s*nào\b|\bcủa\b|\bcó\b"
+        r"|\bcho\s*tôi\s*biết\b|\bcho\s*biết\b|\bxin\s*hỏi\b|\bhỏi\b",
+        re.IGNORECASE | re.UNICODE,
+    )
+    term = CONTEXT_PAT.sub(" ", question.lower())
+    term = re.sub(r"\s+", " ", term).strip()
+    return term, code
+
+
+def query_neo4j_major_admission(driver, question: str) -> list[dict]:
+    """
+    Query Neo4j để lấy diem_chuan / chi_tieu từ MAJOR node.
+    Trả về list dict tương thích format_admission_answer (có key ten_chuong_trinh,
+    ma_nganh, chi_tieu, diem_chuan_2025, khoa_vien).
+    Chỉ trả về kết quả khi node thực sự có ít nhất 1 trong 2 trường này.
+    """
+    term, code = _extract_admission_term(question)
+
+    # Bỏ mã EP/POHE/CLC/TT (chương trình đặc biệt) — những này không có node MAJOR riêng
+    special_code_pat = re.compile(r"\b(EP\d+|POHE\d*|EBBA|EPMP|CLC[123]|TT[12])\b", re.IGNORECASE)
+    if special_code_pat.search(question):
+        return []   # fallback sang ADMISSION_DATA
+
+    cypher = """
+        MATCH (m:MAJOR)
+        WHERE (
+            ($code <> '' AND m.code STARTS WITH $code)
+            OR ($term <> '' AND (
+                toLower(m.name)    CONTAINS toLower($term)
+                OR toLower(m.name_vi) CONTAINS toLower($term)
+            ))
+        )
+        AND (m.diem_chuan IS NOT NULL OR m.chi_tieu IS NOT NULL)
+        RETURN m.name      AS name,
+               m.name_vi   AS name_vi,
+               m.code      AS code,
+               m.diem_chuan AS diem_chuan,
+               m.chi_tieu   AS chi_tieu,
+               m.khoa_vien  AS khoa_vien
+        ORDER BY m.code
+        LIMIT 10
+    """
+    try:
+        with driver.session() as session:
+            rows = session.run(cypher, term=term, code=code).data()
+    except Exception:
+        return []
+
+    results = []
+    for r in rows:
+        name = r.get("name_vi") or r.get("name") or ""
+        results.append({
+            "ten_chuong_trinh": name,
+            "ma_nganh":         r.get("code", ""),
+            "chi_tieu":         r.get("chi_tieu"),
+            "diem_chuan_2025":  r.get("diem_chuan"),
+            "khoa_vien":        r.get("khoa_vien", ""),
+            "_source":          "neo4j",
+        })
+    return results
+
+
+def handle_admission_question(question: str, driver=None) -> str | None:
     """
     Nếu câu hỏi liên quan đến chỉ tiêu/điểm chuẩn → trả về answer string.
     Ngược lại trả về None để pipeline tiếp tục xử lý bình thường.
+
+    Ưu tiên: Neo4j (diem_chuan / chi_tieu lưu trên MAJOR node)
+    Fallback: ADMISSION_DATA (bảng mapping thủ công — dùng cho EP/POHE/CLC/TT)
     """
     if not _ADMISSION_PATTERN.search(question):
         return None
@@ -316,6 +396,13 @@ def handle_admission_question(question: str) -> str | None:
             "hoặc xem toàn bộ danh sách tại tuyensinh.neu.edu.vn."
         )
 
+    # ── Bước 1: Thử Neo4j trước (chính quy — diem_chuan / chi_tieu trên node MAJOR) ──
+    if driver is not None:
+        neo4j_programs = query_neo4j_major_admission(driver, question)
+        if neo4j_programs:
+            return format_admission_answer(question, neo4j_programs)
+
+    # ── Bước 2: Fallback sang ADMISSION_DATA (EP/POHE/CLC/TT/sub-program) ──
     programs = search_admission_data(question)
     if not programs:
         return (
@@ -2836,7 +2923,7 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
         )
 
     # ── Bước 0 Chỉ tiêu & Điểm chuẩn tuyển sinh ────────────────────────
-    admission_answer = handle_admission_question(question)
+    admission_answer = handle_admission_question(question, driver)
     if admission_answer is not None:
         print(f"\nA (admission): {admission_answer[:120]}...")
         return _build_record(
@@ -3108,7 +3195,7 @@ async def ask(request: Request):
         )
 
     # ── Kiểm tra câu hỏi về chỉ tiêu & điểm chuẩn ───────────────────────────────
-    admission_answer = handle_admission_question(question)
+    admission_answer = handle_admission_question(question, driver)
     if admission_answer is not None:
         return JSONResponse(
             content={
