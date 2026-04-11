@@ -22,12 +22,6 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL   = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 MAX_HOPS = int(os.getenv("MAX_HOPS", "3"))
-# ──────────────────────────────────────────────────────────────────────────────
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CHỈ TIÊU & ĐIỂM CHUẨN TUYỂN SINH 2025 — mapping thủ công từ tài liệu NEU
-# Mỗi entry: danh sách chương trình thuộc cùng mã ngành / tên chương trình
-# ══════════════════════════════════════════════════════════════════════════════
 
 ADMISSION_DATA: list[dict] = [
     # ── Chương trình Đặc biệt (EP) ─────────────────────────────────────────
@@ -76,47 +70,9 @@ ADMISSION_DATA: list[dict] = [
     {"so": 41, "ten_chuong_trinh": "Quản trị giải trí và sự kiện",       "ma_xet_tuyen": "EP18",      "ma_nganh": "7810101", "ten_nganh": "Du lịch",                                "khoa_vien": "Khoa Du lịch và Khách sạn",                       "chi_tieu": 50,  "diem_chuan_2025": 25.89},
     {"so": 42, "ten_chuong_trinh": "Quản lý công và Chính sách (E-PMP)", "ma_xet_tuyen": "EPMP",      "ma_nganh": "7340403", "ten_nganh": "Quản lý công",                           "khoa_vien": "Khoa Khoa học quản lý",                           "chi_tieu": 70,  "diem_chuan_2025": 23.04},
     # ── Hệ Đại trà / Chính quy ────────────────────────────────────────────
-    {"so": 43, "ten_chuong_trinh": "An toàn thông tin",                   "ma_xet_tuyen": "7480202",   "ma_nganh": "7480202", "ten_nganh": "An toàn thông tin",                      "khoa_vien": "Khoa Công nghệ thông tin",                         "chi_tieu": 50,  "diem_chuan_2025": 25.59},
-    {"so": 44, "ten_chuong_trinh": "Bảo hiểm",                            "ma_xet_tuyen": "7340204",   "ma_nganh": "7340204", "ten_nganh": "Bảo hiểm",                               "khoa_vien": "Khoa Bảo hiểm",                                   "chi_tieu": 80,  "diem_chuan_2025": 24.75},
-    {"so": 45, "ten_chuong_trinh": "Bất động sản",                        "ma_xet_tuyen": "7340116",   "ma_nganh": "7340116", "ten_nganh": "Bất động sản",                           "khoa_vien": "Khoa Bất động sản và Kinh tế Tài nguyên",          "chi_tieu": 70,  "diem_chuan_2025": 25.41},
-    {"so": 46, "ten_chuong_trinh": "Công nghệ thông tin",                 "ma_xet_tuyen": "7480201",   "ma_nganh": "7480201", "ten_nganh": "Công nghệ thông tin",                    "khoa_vien": "Khoa Công nghệ thông tin",                         "chi_tieu": 100, "diem_chuan_2025": 25.89},
-    {"so": 47, "ten_chuong_trinh": "Hệ thống thông tin",                  "ma_xet_tuyen": "7480104",   "ma_nganh": "7480104", "ten_nganh": "Hệ thống thông tin",                     "khoa_vien": "Khoa Hệ thống thông tin quản lý",                  "chi_tieu": 50,  "diem_chuan_2025": 26.38},
-    {"so": 48, "ten_chuong_trinh": "Hệ thống thông tin quản lý",          "ma_xet_tuyen": "7340405",   "ma_nganh": "7340405", "ten_nganh": "Hệ thống thông tin quản lý",             "khoa_vien": "Khoa Hệ thống thông tin quản lý",                  "chi_tieu": 100, "diem_chuan_2025": 27.54},
-    {"so": 49, "ten_chuong_trinh": "Kế toán",                             "ma_xet_tuyen": "7340301",   "ma_nganh": "7340301", "ten_nganh": "Kế toán",                                "khoa_vien": "Viện Kế toán - Kiểm toán",                         "chi_tieu": 150, "diem_chuan_2025": 27.1},
-    {"so": 50, "ten_chuong_trinh": "Khoa học máy tính",                   "ma_xet_tuyen": "7480101",   "ma_nganh": "7480101", "ten_nganh": "Khoa học máy tính",                      "khoa_vien": "Khoa Công nghệ thông tin",                         "chi_tieu": 50,  "diem_chuan_2025": 26.27},
-    {"so": 51, "ten_chuong_trinh": "Khoa học quản lý",                    "ma_xet_tuyen": "7340401",   "ma_nganh": "7340401", "ten_nganh": "Khoa học quản lý",                       "khoa_vien": "Khoa Khoa học quản lý",                            "chi_tieu": 90,  "diem_chuan_2025": 26.06},
-    {"so": 52, "ten_chuong_trinh": "Kiểm toán",                           "ma_xet_tuyen": "7340302",   "ma_nganh": "7340302", "ten_nganh": "Kiểm toán",                              "khoa_vien": "Viện Kế toán - Kiểm toán",                         "chi_tieu": 50,  "diem_chuan_2025": 28.38},
-    {"so": 53, "ten_chuong_trinh": "Kinh doanh nông nghiệp",              "ma_xet_tuyen": "7620114",   "ma_nganh": "7620114", "ten_nganh": "Kinh doanh nông nghiệp",                 "khoa_vien": "Khoa Bất động sản và Kinh tế Tài nguyên",          "chi_tieu": 50,  "diem_chuan_2025": 23.75},
-    {"so": 54, "ten_chuong_trinh": "Kinh doanh quốc tế",                  "ma_xet_tuyen": "7340120",   "ma_nganh": "7340120", "ten_nganh": "Kinh doanh quốc tế",                     "khoa_vien": "Viện Thương mại và Kinh tế quốc tế",               "chi_tieu": 100, "diem_chuan_2025": 28.65},
-    {"so": 55, "ten_chuong_trinh": "Kinh doanh thương mại",               "ma_xet_tuyen": "7340121",   "ma_nganh": "7340121", "ten_nganh": "Kinh doanh thương mại",                  "khoa_vien": "Viện Thương mại và Kinh tế quốc tế",               "chi_tieu": 100, "diem_chuan_2025": 28.0},
-    {"so": 56, "ten_chuong_trinh": "Kinh tế đầu tư",                      "ma_xet_tuyen": "7310104",   "ma_nganh": "7310104", "ten_nganh": "Kinh tế đầu tư",                         "khoa_vien": "Khoa Đầu tư",                                      "chi_tieu": 100, "diem_chuan_2025": 27.5},
     {"so": 57, "ten_chuong_trinh": "Kinh tế học",                         "ma_xet_tuyen": "7310101_1", "ma_nganh": "7310101", "ten_nganh": "Kinh tế",                                "khoa_vien": "Khoa Kinh tế học",                                 "chi_tieu": 50,  "diem_chuan_2025": 26.52},
-    {"so": 58, "ten_chuong_trinh": "Kinh tế nông nghiệp",                 "ma_xet_tuyen": "7620115",   "ma_nganh": "7620115", "ten_nganh": "Kinh tế nông nghiệp",                    "khoa_vien": "Khoa Bất động sản và Kinh tế Tài nguyên",          "chi_tieu": 50,  "diem_chuan_2025": 24.35},
-    {"so": 59, "ten_chuong_trinh": "Kinh tế phát triển",                  "ma_xet_tuyen": "7310105",   "ma_nganh": "7310105", "ten_nganh": "Kinh tế phát triển",                     "khoa_vien": "Khoa Kế hoạch và Phát triển",                      "chi_tieu": 80,  "diem_chuan_2025": 26.77},
-    {"so": 60, "ten_chuong_trinh": "Kinh tế quốc tế",                     "ma_xet_tuyen": "7310106",   "ma_nganh": "7310106", "ten_nganh": "Kinh tế quốc tế",                        "khoa_vien": "Viện Thương mại và Kinh tế quốc tế",               "chi_tieu": 50,  "diem_chuan_2025": 28.13},
-    {"so": 61, "ten_chuong_trinh": "Kinh tế tài nguyên thiên nhiên",      "ma_xet_tuyen": "7850102",   "ma_nganh": "7850102", "ten_nganh": "Kinh tế tài nguyên thiên nhiên",         "khoa_vien": "Khoa Bất động sản và Kinh tế Tài nguyên",          "chi_tieu": 50,  "diem_chuan_2025": 23.5},
     {"so": 62, "ten_chuong_trinh": "Kinh tế và quản lý đô thị",           "ma_xet_tuyen": "7310101_2", "ma_nganh": "7310101", "ten_nganh": "Kinh tế",                                "khoa_vien": "Khoa Môi trường, Biến đổi khí hậu và Đô thị",      "chi_tieu": 50,  "diem_chuan_2025": 25.86},
     {"so": 63, "ten_chuong_trinh": "Kinh tế và quản lý nguồn nhân lực",   "ma_xet_tuyen": "7310101_3", "ma_nganh": "7310101", "ten_nganh": "Kinh tế",                                "khoa_vien": "Khoa Kinh tế và Quản lý nguồn nhân lực",           "chi_tieu": 50,  "diem_chuan_2025": 26.79},
-    {"so": 64, "ten_chuong_trinh": "Logistics và Quản lý chuỗi cung ứng", "ma_xet_tuyen": "7510605",   "ma_nganh": "7510605", "ten_nganh": "Logistics và Quản lý chuỗi cung ứng",    "khoa_vien": "Viện Thương mại và Kinh tế quốc tế",               "chi_tieu": 100, "diem_chuan_2025": 28.61},
-    {"so": 65, "ten_chuong_trinh": "Luật",                                 "ma_xet_tuyen": "7380101",   "ma_nganh": "7380101", "ten_nganh": "Luật",                                   "khoa_vien": "Khoa Luật",                                        "chi_tieu": 50,  "diem_chuan_2025": 25.96},
-    {"so": 66, "ten_chuong_trinh": "Luật kinh tế",                        "ma_xet_tuyen": "7380107",   "ma_nganh": "7380107", "ten_nganh": "Luật kinh tế",                           "khoa_vien": "Khoa Luật",                                        "chi_tieu": 80,  "diem_chuan_2025": 26.75},
-    {"so": 67, "ten_chuong_trinh": "Luật thương mại quốc tế",             "ma_xet_tuyen": "7380109",   "ma_nganh": "7380109", "ten_nganh": "Luật thương mại quốc tế",                "khoa_vien": "Khoa Luật",                                        "chi_tieu": 50,  "diem_chuan_2025": 26.44},
-    {"so": 68, "ten_chuong_trinh": "Marketing",                            "ma_xet_tuyen": "7340115",   "ma_nganh": "7340115", "ten_nganh": "Marketing",                              "khoa_vien": "Khoa Marketing",                                   "chi_tieu": 100, "diem_chuan_2025": 28.12},
-    {"so": 69, "ten_chuong_trinh": "Ngôn ngữ Anh",                        "ma_xet_tuyen": "7220201",   "ma_nganh": "7220201", "ten_nganh": "Ngôn ngữ Anh",                           "khoa_vien": "Khoa Ngoại ngữ Kinh tế",                           "chi_tieu": 90,  "diem_chuan_2025": 26.51},
-    {"so": 70, "ten_chuong_trinh": "Quan hệ công chúng",                   "ma_xet_tuyen": "7320108",   "ma_nganh": "7320108", "ten_nganh": "Quan hệ công chúng",                     "khoa_vien": "Khoa Marketing",                                   "chi_tieu": 50,  "diem_chuan_2025": 28.07},
-    {"so": 71, "ten_chuong_trinh": "Quan hệ lao động",                    "ma_xet_tuyen": "7340408",   "ma_nganh": "7340408", "ten_nganh": "Quan hệ lao động",                       "khoa_vien": "Khoa Kinh tế và Quản lý nguồn nhân lực",           "chi_tieu": 40,  "diem_chuan_2025": 25.0},
-    {"so": 72, "ten_chuong_trinh": "Quản lý công",                        "ma_xet_tuyen": "7340403",   "ma_nganh": "7340403", "ten_nganh": "Quản lý công",                           "khoa_vien": "Khoa Khoa học quản lý",                            "chi_tieu": 50,  "diem_chuan_2025": 25.42},
-    {"so": 73, "ten_chuong_trinh": "Quản lý đất đai",                     "ma_xet_tuyen": "7850103",   "ma_nganh": "7850103", "ten_nganh": "Quản lý đất đai",                        "khoa_vien": "Khoa Bất động sản và Kinh tế Tài nguyên",          "chi_tieu": 50,  "diem_chuan_2025": 24.38},
-    {"so": 74, "ten_chuong_trinh": "Quản lý dự án",                       "ma_xet_tuyen": "7340409",   "ma_nganh": "7340409", "ten_nganh": "Quản lý dự án",                          "khoa_vien": "Khoa Đầu tư",                                      "chi_tieu": 50,  "diem_chuan_2025": 26.63},
-    {"so": 75, "ten_chuong_trinh": "Quản lý tài nguyên và môi trường",    "ma_xet_tuyen": "7850101",   "ma_nganh": "7850101", "ten_nganh": "Quản lý tài nguyên và môi trường",       "khoa_vien": "Khoa Môi trường, Biến đổi khí hậu và Đô thị",      "chi_tieu": 50,  "diem_chuan_2025": 24.17},
-    {"so": 76, "ten_chuong_trinh": "Quản trị dịch vụ du lịch và lữ hành", "ma_xet_tuyen": "7810103",  "ma_nganh": "7810103", "ten_nganh": "Quản trị dịch vụ du lịch và lữ hành",    "khoa_vien": "Khoa Du lịch và Khách sạn",                        "chi_tieu": 60,  "diem_chuan_2025": 26.06},
-    {"so": 77, "ten_chuong_trinh": "Quản trị khách sạn",                  "ma_xet_tuyen": "7810201",   "ma_nganh": "7810201", "ten_nganh": "Quản trị khách sạn",                     "khoa_vien": "Khoa Du lịch và Khách sạn",                        "chi_tieu": 50,  "diem_chuan_2025": 26.25},
-    {"so": 78, "ten_chuong_trinh": "Quản trị kinh doanh",                 "ma_xet_tuyen": "7340101",   "ma_nganh": "7340101", "ten_nganh": "Quản trị kinh doanh",                    "khoa_vien": "Khoa Quản trị kinh doanh",                         "chi_tieu": 180, "diem_chuan_2025": 27.1},
-    {"so": 79, "ten_chuong_trinh": "Quản trị nhân lực",                   "ma_xet_tuyen": "7340404",   "ma_nganh": "7340404", "ten_nganh": "Quản trị nhân lực",                      "khoa_vien": "Khoa Kinh tế và Quản lý nguồn nhân lực",           "chi_tieu": 70,  "diem_chuan_2025": 27.1},
-    {"so": 80, "ten_chuong_trinh": "Tài chính - Ngân hàng",               "ma_xet_tuyen": "7340201",   "ma_nganh": "7340201", "ten_nganh": "Tài chính Ngân hàng",                    "khoa_vien": "Viện Ngân hàng - Tài chính",                       "chi_tieu": 230, "diem_chuan_2025": 27.34},
-    {"so": 81, "ten_chuong_trinh": "Thống kê kinh tế",                    "ma_xet_tuyen": "7310107",   "ma_nganh": "7310107", "ten_nganh": "Thống kê kinh tế",                       "khoa_vien": "Khoa Thống kê",                                    "chi_tieu": 50,  "diem_chuan_2025": 26.79},
-    {"so": 82, "ten_chuong_trinh": "Thương mại điện tử",                  "ma_xet_tuyen": "7340122",   "ma_nganh": "7340122", "ten_nganh": "Thương mại điện tử",                     "khoa_vien": "Viện Thương mại và Kinh tế quốc tế",               "chi_tieu": 50,  "diem_chuan_2025": 28.83},
-    {"so": 83, "ten_chuong_trinh": "Toán kinh tế",                        "ma_xet_tuyen": "7310108",   "ma_nganh": "7310108", "ten_nganh": "Toán kinh tế",                           "khoa_vien": "Khoa Toán kinh tế",                                "chi_tieu": 50,  "diem_chuan_2025": 26.73},
     # ── TT1 / TT2 ─────────────────────────────────────────────────────────
     {"so": 84, "ten_chuong_trinh": "Kế toán (TT1)",                       "ma_xet_tuyen": "TT1",       "ma_nganh": "7340301", "ten_nganh": "Kế toán",                                "khoa_vien": "Viện Kế toán - Kiểm toán",                         "chi_tieu": 55,  "diem_chuan_2025": 24.75},
     {"so": 85, "ten_chuong_trinh": "Kế hoạch tài chính (TT1)",            "ma_xet_tuyen": "TT1",       "ma_nganh": "7340201", "ten_nganh": "Tài chính Ngân hàng",                    "khoa_vien": "Viện Ngân hàng - Tài chính",                       "chi_tieu": 55,  "diem_chuan_2025": 24.75},
@@ -2858,11 +2814,7 @@ def _build_record(
 def run_pipeline(question: str, query_id: str) -> dict:
     return kg_ask(driver, ai_client, question, query_id=query_id)
 
-
-
-
 # FASTAPI ENDPOINTS
-
 
 @app.get("/metadata")
 async def metadata():
