@@ -2565,6 +2565,124 @@ def detect_ctdt_question(question: str) -> str | None:
         ).strip(" ?")
         return major_name if major_name else "ngành bạn quan tâm"
     return "ngành bạn quan tâm"
+_SELF_INTRO_PATTERN = re.compile(
+    # Từ script3._META_PATTERNS
+    r"bạn (là|là gì|là ai|có thể|làm được|giúp được|biết gì|dùng để làm|làm gì|làm đc gì|lm đc gì)\b"
+    r"|bạn tên (là |gì)\b"
+    r"|(?:giới thiệu|tự giới thiệu).{0,20}(?:bạn|mình|bản thân)\b"
+    r"|(?:chatbot|trợ lý|bot).{0,30}(?:này|đây|là gì|làm gì|có thể)\b"
+    r"|(?:bạn|mày|m) có (?:thể|biết|làm|hiểu)\b"
+    r"|(?:chào|hello|hi|xin chào).{0,30}(?:bạn|bot|chatbot)\b"
+    # Từ script3a (mở rộng thêm)
+    r"|bạn có thể giúp gì|bạn hỗ trợ gì|bạn giải đáp gì"
+    r"|chatbot này là gì|chatbot này làm gì|chatbot này dùng để làm gì"
+    r"|bạn có thể trả lời (về|câu hỏi) gì|bạn có thể tư vấn"
+    r"|bạn biết gì|bạn hiểu gì|bạn trả lời được gì"
+    r"|em có thể hỏi gì|tôi có thể hỏi gì|mình có thể hỏi gì"
+    r"|nội dung gì|về nội dung|giải đáp.*nội dung"
+    # Biến thể tư vấn (thêm để bắt "bạn tư vấn về gì")
+    r"|bạn tư vấn|tư vấn (về|gì|những gì|được gì|về gì)"
+    r"|bạn (giúp|hỗ trợ|trả lời).{0,15}(gì|được gì|những gì)"
+    r"|(?:cho tôi|cho mình|cho em).{0,20}biết.{0,20}(?:bạn|chatbot|bot)",
+    re.IGNORECASE | re.UNICODE,
+)
+
+# Alias để tương thích nếu code khác import từ đây
+_META_PATTERNS = _SELF_INTRO_PATTERN
+
+def detect_meta_question(question: str) -> bool:
+    """Alias của detect_self_intro — giữ để tương thích."""
+    return bool(_SELF_INTRO_PATTERN.search(question))
+
+
+
+SELF_INTRO_ANSWER = """
+Xin chào! Tôi là **NEU AI Assistant**.
+
+Tôi là chatbot hỗ trợ hỏi đáp học thuật về Đại học Kinh tế Quốc dân (NEU).
+
+Tôi có thể giúp bạn:
+• Tìm hiểu ngành học và chương trình đào tạo  
+• Tra cứu môn học và nội dung môn  
+• Tìm giảng viên dạy môn  
+• Khám phá kỹ năng từ từng môn học  
+• Tìm mối liên hệ giữa ngành học – kỹ năng – nghề nghiệp
+
+Tôi sử dụng **Knowledge Graph + GraphRAG + Neo4j** để truy vấn và tổng hợp thông tin chính xác.
+
+Bạn muốn hỏi gì về việc học tại NEU? 😊
+"""
+
+# Alias để tương thích với script3.py (dùng CHATBOT_IDENTITY)
+CHATBOT_IDENTITY = SELF_INTRO_ANSWER
+
+# Từ khóa nhận diện câu hỏi ngoài phạm vi (off-topic)
+_OFF_TOPIC_PATTERNS = [
+    # Thời tiết, tin tức
+    re.compile(r"thời tiết|dự báo|mưa|nắng|bão|lũ|động đất|tin tức|báo chí|thời sự", re.IGNORECASE | re.UNICODE),
+    # Y tế / sức khỏe cá nhân
+    re.compile(r"bệnh viện|thuốc|chữa bệnh|khám bệnh|sức khỏe|triệu chứng|bác sĩ ơi|đau đầu|sốt|cảm cúm", re.IGNORECASE | re.UNICODE),
+    # Nấu ăn, thực phẩm
+    re.compile(r"nấu ăn|công thức nấu|nguyên liệu nấu|món ăn|thực đơn|ăn gì ngon", re.IGNORECASE | re.UNICODE),
+    # Giải trí, phim ảnh, âm nhạc
+    re.compile(r"phim (?:hay|mới|chiếu)|bài hát|ca sĩ|diễn viên|xem phim|nghe nhạc|game (?:hay|mới)", re.IGNORECASE | re.UNICODE),
+    # Thể thao — kết quả, tỉ số, giải đấu
+    re.compile(
+        r"bóng đá|kết quả bóng|đội tuyển|trận đấu|giải đấu|bóng rổ|tennis|cầu lông"
+        r"|world cup|worldcup|euro|champions league|ngoại hạng anh|la liga|bundesliga"
+        r"|tỉ số|tỷ số|chung kết|vô địch|huy chương|olympic|seagame|sea game"
+        r"|cầu thủ|vận động viên|hlv|huấn luyện viên đội",
+        re.IGNORECASE | re.UNICODE,
+    ),
+    # Chính trị
+    re.compile(r"bầu cử|tổng thống|thủ tướng|quốc hội|đảng phái|chiến tranh|xung đột", re.IGNORECASE | re.UNICODE),
+    # Kỹ thuật ngoài phạm vi
+    re.compile(r"sửa máy tính|cài windows|sửa điện thoại|hack|virus máy tính", re.IGNORECASE | re.UNICODE),
+    # Tình cảm
+    re.compile(r"người yêu|tình yêu|chia tay|cưới|hôn nhân|tâm sự|buồn quá|cô đơn", re.IGNORECASE | re.UNICODE),
+    # Du lịch thuần túy
+    re.compile(r"đặt vé|vé máy bay|khách sạn (?:tốt|rẻ|ở đâu)|du lịch (?:ở đâu|bao nhiêu tiền|mấy ngày)", re.IGNORECASE | re.UNICODE),
+    # Tài chính cá nhân
+    re.compile(r"mua cổ phiếu nào|đầu tư vào đâu|bitcoin|crypto|giá vàng|tỷ giá hôm nay", re.IGNORECASE | re.UNICODE),
+    # Misc: dịch thuật, truyện, công thức toán thuần túy ngoài học thuật
+    re.compile(r"dịch sang tiếng|translate|kể chuyện|viết truyện|viết thơ|tử vi|horoscope", re.IGNORECASE | re.UNICODE),
+]
+
+# Từ khóa "safe" — nếu câu hỏi chứa các từ này thì KHÔNG phải off-topic dù match pattern trên
+_SAFE_KEYWORDS = re.compile(
+    r"ngành|chuyên ngành|môn học|giảng viên|sinh viên|đại học|neu|kinh tế quốc dân"
+    r"|chương trình đào tạo|tuyển sinh|điểm chuẩn|nghề nghiệp|kỹ năng|mbti|tính cách",
+    re.IGNORECASE | re.UNICODE,
+)
+
+OFF_TOPIC_ANSWER = (
+    "Tôi có thể tư vấn **ngành học và nghề nghiệp** theo định hướng và tính cách của bạn. "
+    "Chatbot hiện **không thể trả lời** các câu hỏi không liên quan đến chương trình đào tạo tại NEU, "
+    "vui lòng tham khảo các agent khác.\n\n"
+    "Tôi có thể giúp bạn về:\n"
+    "- 🎓 Ngành học, môn học, chương trình đào tạo tại NEU\n"
+    "- 💼 Nghề nghiệp, cơ hội việc làm sau tốt nghiệp\n"
+    "- 🧠 Định hướng theo tính cách MBTI\n"
+    "- 📊 Điểm chuẩn và chỉ tiêu tuyển sinh\n\n"
+    "Bạn có muốn hỏi về những chủ đề trên không?"
+)
+
+
+def detect_off_topic(question: str) -> bool:
+    """Trả về True nếu câu hỏi ngoài phạm vi của chatbot."""
+    # Nếu câu hỏi có từ khóa học thuật/NEU → không phải off-topic
+    if _SAFE_KEYWORDS.search(question):
+        return False
+    # Kiểm tra pattern off-topic
+    for pattern in _OFF_TOPIC_PATTERNS:
+        if pattern.search(question):
+            return True
+    return False
+
+
+def detect_self_intro(question: str) -> bool:
+    """Trả về True nếu user hỏi về bản thân chatbot."""
+    return bool(_SELF_INTRO_PATTERN.search(question))
 
 def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None) -> dict:
     if query_id is None:
@@ -2572,6 +2690,28 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
 
     print(f"\n{'='*60}")
     print(f"Q [{query_id}]: {question}")
+
+    if detect_self_intro(question):
+        print(f"\nA: {SELF_INTRO_ANSWER}")
+        return _build_record(
+            query_id, question, SELF_INTRO_ANSWER, [],
+            {"asked_label": "SELF_INTRO", "mentioned_labels": [],
+             "keywords": [], "negated_keywords": [],
+             "community_id": "SELF_INTRO"},
+            [], [], "self_intro_static",
+        )
+
+    # ── Bước 0-pre-B: Off-topic detection ────────────────────────────────────
+    if detect_off_topic(question):
+        print(f"\nA: {OFF_TOPIC_ANSWER}")
+        return _build_record(
+            query_id, question, OFF_TOPIC_ANSWER, [],
+            {"asked_label": "OFF_TOPIC", "mentioned_labels": [],
+             "keywords": [], "negated_keywords": [],
+             "community_id": "OFF_TOPIC"},
+            [], [], "off_topic_static",
+        )
+    
     ctdt_major = detect_ctdt_question(question)
     if ctdt_major is not None:
         answer = (
@@ -2587,7 +2727,7 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
             [], [], "ctdt_redirect",
         )
 
-    # ── Bước 0-pre: Chỉ tiêu & Điểm chuẩn tuyển sinh ────────────────────────
+    # ── Bước 0 Chỉ tiêu & Điểm chuẩn tuyển sinh ────────────────────────
     admission_answer = handle_admission_question(question)
     if admission_answer is not None:
         print(f"\nA (admission): {admission_answer[:120]}...")
