@@ -2616,6 +2616,93 @@ Bạn muốn hỏi gì về việc học tại NEU? 😊
 # Alias để tương thích với script3.py (dùng CHATBOT_IDENTITY)
 CHATBOT_IDENTITY = SELF_INTRO_ANSWER
 
+_SCORE_CONVERT_PATTERN = re.compile(
+    r"quy\s*đổi\s*điểm|quy\s*đổi\s*chứng\s*chỉ|điểm\s*quy\s*đổi"
+    r"|ielts.{0,15}(tương\s*đương|bằng|đổi|thành|quy)"
+    r"|toefl.{0,15}(tương\s*đương|bằng|đổi|thành|quy)"
+    r"|toeic.{0,15}(tương\s*đương|bằng|đổi|thành|quy)"
+    r"|sat.{0,15}(tương\s*đương|bằng|đổi|thành|quy)"
+    r"|act.{0,15}(tương\s*đương|bằng|đổi|thành|quy)"
+    r"|(ielts|toefl|toeic|sat|act|hsa|v-act|tsa).{0,20}(neu|điểm|xét\s*tuyển)"
+    r"|chứng\s*chỉ.{0,20}(quy\s*đổi|tính\s*điểm|xét\s*tuyển)"
+    r"|điểm\s*thpt.{0,20}quy\s*đổi|cộng\s*điểm\s*ưu\s*tiên"
+    r"|tính\s*điểm\s*xét\s*tuyển|công\s*thức\s*điểm"
+    # Câu hỏi "tôi có X điểm IELTS/HSA/... thì đỗ ngành gì"
+    r"|(ielts|toefl|toeic|sat|act|hsa|v\-act|tsa).{0,80}(đỗ|đậu|vào\s*được|trúng\s*tuyển|học\s*được)"
+    r"|(đỗ|đậu|vào\s*được|trúng\s*tuyển).{0,60}(ielts|toefl|toeic|sat|act|hsa|v\-act|tsa)"
+    r"|\d[\d,\.]+\s*(ielts|toefl|toeic|sat|act|hsa|v\-act|tsa)"
+    r"|(ielts|toefl|toeic|sat|act|hsa|v\-act|tsa)\s*\d[\d,\.]+"
+    r"|tôi\s*có.{0,50}(ielts|toefl|toeic|sat|hsa|act|tsa).{0,30}(ngành|đỗ|đậu|xét)"
+    r"|với\s*(ielts|toefl|toeic|sat|hsa|act|tsa).{0,60}(ngành|đỗ|đậu|học)",
+    re.IGNORECASE | re.UNICODE,
+)
+
+_ADMISSION_INFO_PATTERN = re.compile(
+    r"phương\s*thức\s*xét\s*tuyển|hồ\s*sơ\s*xét\s*tuyển|đăng\s*ký\s*xét\s*tuyển"
+    r"|lịch\s*tuyển\s*sinh|lộ\s*trình\s*tuyển\s*sinh|kế\s*hoạch\s*tuyển\s*sinh"
+    r"|ngưỡng\s*đầu\s*vào|điều\s*kiện\s*(?:xét\s*tuyển|dự\s*tuyển|tuyển\s*sinh)"
+    r"|xét\s*tuyển\s*thẳng|xét\s*tuyển\s*kết\s*hợp"
+    r"|tổ\s*hợp\s*môn|a00|a01|d01|d07"
+    r"|ưu\s*tiên\s*khu\s*vực|ưu\s*tiên\s*đối\s*tượng|kv1|kv2|kv3"
+    r"|liên\s*thông|học\s*phí.{0,20}(neu|trường|năm\s*học)"
+    r"|open\s*day|tư\s*vấn\s*tuyển\s*sinh|hotline\s*tuyển\s*sinh"
+    r"|neu\s*2026|tuyển\s*sinh\s*2026|ngành\s*mới\s*2026|chương\s*trình\s*mới\s*2026",
+    re.IGNORECASE | re.UNICODE,
+)
+
+# Safe keywords — nếu hỏi về ngành học cụ thể thì không redirect
+# Phải có tên ngành cụ thể hoặc từ "môn học/giảng viên" mới là safe
+_ADMISSION_SAFE = re.compile(
+    r"điểm\s*chuẩn\s+ngành\s+\w|chỉ\s*tiêu\s+ngành\s+\w"
+    r"|môn\s+học|giảng\s+viên|kỹ\s+năng|nghề\s+nghiệp",
+    re.IGNORECASE | re.UNICODE,
+)
+
+SCORE_CONVERT_ANSWER = (
+    "Câu hỏi của bạn liên quan đến **quy đổi và tư vấn điểm xét tuyển** — "
+    "lĩnh vực này được xử lý bởi agent chuyên biệt.\n\n"
+    "👉 Vui lòng sử dụng agent **Quy đổi và tư vấn điểm**\n"
+    "**https://ai.neu.edu.vn/tuyen-sinh/tools/convertum**\n\n"
+    "Agent này hỗ trợ:\n"
+    "- Quy đổi điểm từ: IELTS, TOEFL iBT, TOEIC, SAT, ACT, HSA, V-ACT, TSA\n"
+    "- Điểm thi THPT (các tổ hợp A00/A01/D01/D07)\n"
+    "- Tính điểm ưu tiên khu vực/đối tượng\n"
+    "- Tư vấn ngành nào phù hợp với điểm của bạn"
+)
+
+ADMISSION_INFO_ANSWER = (
+    "Câu hỏi của bạn liên quan đến **thông tin tuyển sinh NEU 2026** "
+    "(quy chế, phương thức, lộ trình, học phí...) — "
+    "lĩnh vực này được xử lý bởi agent chuyên biệt.\n\n"
+    "👉 Vui lòng sử dụng agent **Thông tin tuyển sinh NEU 2026** tại:\n"
+    "**https://ai.neu.edu.vn/tuyen-sinh/tools/neu-admission-info**\n\n"
+    "Agent này có đầy đủ:\n"
+    "- Quy chế & điều kiện bắt buộc\n"
+    "- Phương thức xét tuyển (thẳng, kết hợp, THPT)\n"
+    "- Tra cứu chỉ tiêu & điểm chuẩn 2025\n"
+    "- Quy đổi chứng chỉ tiếng Anh quốc tế\n"
+    "- Lộ trình tuyển sinh & kênh liên hệ chính thức\n\n"
+    "Tôi vẫn có thể giúp bạn tra cứu **điểm chuẩn/chỉ tiêu từng ngành** "
+    "hoặc tư vấn **ngành học phù hợp** nếu bạn cần!"
+)
+
+
+def detect_score_convert(question: str) -> bool:
+    """Trả về True nếu câu hỏi hỏi về quy đổi điểm."""
+    if _ADMISSION_SAFE.search(question):
+        return False
+    return bool(_SCORE_CONVERT_PATTERN.search(question))
+
+
+def detect_admission_info(question: str) -> bool:
+    """Trả về True nếu câu hỏi hỏi về thông tin tuyển sinh quy chế/lộ trình."""
+    if _ADMISSION_SAFE.search(question):
+        return False
+    # Không redirect nếu chỉ hỏi điểm chuẩn ngành cụ thể (đã xử lý ở handle_admission_question)
+    if _ADMISSION_PATTERN.search(question) and not _ADMISSION_INFO_PATTERN.search(question):
+        return False
+    return bool(_ADMISSION_INFO_PATTERN.search(question))
+
 # Từ khóa nhận diện câu hỏi ngoài phạm vi (off-topic)
 _OFF_TOPIC_PATTERNS = [
     # Thời tiết, tin tức
@@ -2656,14 +2743,18 @@ _SAFE_KEYWORDS = re.compile(
 )
 
 OFF_TOPIC_ANSWER = (
-    "Tôi có thể tư vấn **ngành học và nghề nghiệp** theo định hướng và tính cách của bạn. "
-    "Chatbot hiện **không thể trả lời** các câu hỏi không liên quan đến chương trình đào tạo tại NEU, "
-    "vui lòng tham khảo các agent khác.\n\n"
+    "Câu hỏi này nằm ngoài phạm vi của tôi. Tôi chuyên tư vấn về **ngành học, môn học, "
+    "giảng viên và nghề nghiệp** tại NEU.\n\n"
+    "Nếu bạn cần hỗ trợ về tuyển sinh, hãy tham khảo 2 agent chuyên biệt:\n"
+    "- 📋 **Thông tin tuyển sinh NEU 2026** (quy chế, phương thức, lộ trình, học phí) → "
+    "[ai.neu.edu.vn/tuyen-sinh](https://ai.neu.edu.vn/tuyen-sinh/tools/neu-admission-info)\n"
+    "- 🔢 **Quy đổi và tư vấn điểm** (IELTS/TOEFL/SAT/HSA/THPT → điểm xét tuyển NEU) → "
+    "[ai.neu.edu.vn/quy-doi](https://ai.neu.edu.vn/tuyen-sinh/tools/convertum)\n\n"
     "Tôi có thể giúp bạn về:\n"
     "- 🎓 Ngành học, môn học, chương trình đào tạo tại NEU\n"
     "- 💼 Nghề nghiệp, cơ hội việc làm sau tốt nghiệp\n"
     "- 🧠 Định hướng theo tính cách MBTI\n"
-    "- 📊 Điểm chuẩn và chỉ tiêu tuyển sinh\n\n"
+    "- 📊 Điểm chuẩn và chỉ tiêu tuyển sinh từng ngành\n\n"
     "Bạn có muốn hỏi về những chủ đề trên không?"
 )
 
@@ -2692,7 +2783,6 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
     print(f"Q [{query_id}]: {question}")
 
     if detect_self_intro(question):
-        print(f"\nA: {SELF_INTRO_ANSWER}")
         return _build_record(
             query_id, question, SELF_INTRO_ANSWER, [],
             {"asked_label": "SELF_INTRO", "mentioned_labels": [],
@@ -2701,9 +2791,27 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
             [], [], "self_intro_static",
         )
 
-    # ── Bước 0-pre-B: Off-topic detection ────────────────────────────────────
+
+    if detect_score_convert(question):
+        return _build_record(
+            query_id, question, SCORE_CONVERT_ANSWER, [],
+            {"asked_label": "SCORE_CONVERT", "mentioned_labels": [],
+             "keywords": [], "negated_keywords": [],
+             "community_id": "REDIRECT"},
+            [], [], "score_convert_redirect",
+        )
+
+
+    if detect_admission_info(question):
+        return _build_record(
+            query_id, question, ADMISSION_INFO_ANSWER, [],
+            {"asked_label": "ADMISSION_INFO", "mentioned_labels": [],
+             "keywords": [], "negated_keywords": [],
+             "community_id": "REDIRECT"},
+            [], [], "admission_info_redirect",
+        )
+
     if detect_off_topic(question):
-        print(f"\nA: {OFF_TOPIC_ANSWER}")
         return _build_record(
             query_id, question, OFF_TOPIC_ANSWER, [],
             {"asked_label": "OFF_TOPIC", "mentioned_labels": [],
