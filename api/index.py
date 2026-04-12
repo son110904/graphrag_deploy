@@ -4,7 +4,7 @@ import json
 import uuid
 import datetime
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, deque
 from neo4j import GraphDatabase
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -577,6 +577,11 @@ def filter_excluded_subjects(nodes: list[dict], exclude: bool) -> list[dict]:
 # Module-level clients (reuse giữa các invocations trên cùng instance)
 ai_client = OpenAI(api_key=OPENAI_API_KEY)
 driver    = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
+
+# ── Conversation Memory ────────────────────────────────────────────────────────
+# Lưu tối đa 5 lượt hội thoại gần nhất theo session_id
+# Mỗi entry: {"role": "user"/"assistant", "content": str}
+_conversation_memory: dict[str, deque] = defaultdict(lambda: deque(maxlen=10))  # 5 lượt = 10 messages
 
 app = FastAPI()
 
@@ -2605,6 +2610,7 @@ def generate_answer(
     intent:       dict,
     community_def: dict | None = None,
     override_constraint: str | None = None,
+    history: list[dict] | None = None,
 ) -> str:
     context = json.dumps({
         "ranked_results":  ranked_nodes,
@@ -2674,19 +2680,23 @@ def generate_answer(
             f"sau đó thêm đoạn tóm tắt đặc điểm chung.]"
         )
 
+    # Xây dựng messages: system + lịch sử 5 lượt gần nhất + câu hỏi hiện tại
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(list(history))
+
+    messages.append({"role": "user", "content": (
+        f"Câu hỏi: {question}\n\n"
+        f"[DỮ LIỆU GRAPH]:\n{context}"
+        f"{no_data_hint}"
+        f"{excluded_hint}"
+        f"{field_context_hint}\n\n"
+        "Trả lời CHỈ dùng tên/code từ [DỮ LIỆU GRAPH]:"
+    )})
+
     response = ai_client.chat.completions.create(
         model=OPENAI_MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": (
-                f"Câu hỏi: {question}\n\n"
-                f"[DỮ LIỆU GRAPH]:\n{context}"
-                f"{no_data_hint}"
-                f"{excluded_hint}"
-                f"{field_context_hint}\n\n"
-                "Trả lời CHỈ dùng tên/code từ [DỮ LIỆU GRAPH]:"
-            )},
-        ],
+        messages=messages,
         temperature=0,
     )
     raw = response.choices[0].message.content.strip()
@@ -2742,6 +2752,26 @@ def detect_ctdt_question(question: str) -> str | None:
         ).strip(" ?")
         return major_name if major_name else "ngành bạn quan tâm"
     return "ngành bạn quan tâm"
+
+_TUITION_KEYWORDS = re.compile(
+    r"học phí|tiền học|chi phí học|mức phí|phí đào tạo|đóng tiền|nộp tiền"
+    r"|học bổng.*tiền|tiền.*học bổng"
+    r"|giá học|bao nhiêu tiền|tốn bao nhiêu|chi phí.*(?:ngành|khoá|chương trình)"
+    r"|(?:ngành|khoá|chương trình).*chi phí"
+    r"|phí.*(?:ngành|khoá|học kỳ|năm học)"
+    r"|(?:ngành|khoá|học kỳ|năm học).*phí"
+    r"|học kỳ.*tiền|tiền.*học kỳ"
+    r"|đóng.*(?:học phí|tiền)|(?:học phí|tiền).*đóng",
+    re.IGNORECASE | re.UNICODE,
+)
+ 
+def detect_tuition_question(question: str) -> bool:
+    """
+    Trả về True nếu câu hỏi liên quan đến học phí / tiền học.
+    """
+    return bool(_TUITION_KEYWORDS.search(question.strip()))
+
+
 _SELF_INTRO_PATTERN = re.compile(
     # Từ script3._META_PATTERNS
     r"bạn (là|là gì|là ai|có thể|làm được|giúp được|biết gì|dùng để làm|làm gì|làm đc gì|lm đc gì)\b"
@@ -2962,7 +2992,7 @@ def detect_self_intro(question: str) -> bool:
     """Trả về True nếu user hỏi về bản thân chatbot."""
     return bool(_SELF_INTRO_PATTERN.search(question))
 
-def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None) -> dict:
+def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None, history: list[dict] | None = None) -> dict:
     if query_id is None:
         query_id = "q" + uuid.uuid4().hex[:6]
 
@@ -3006,6 +3036,8 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
              "community_id": "OFF_TOPIC"},
             [], [], "off_topic_static",
         )
+    
+    
     
     ctdt_major = detect_ctdt_question(question)
     if ctdt_major is not None:
@@ -3203,7 +3235,7 @@ def kg_ask(driver, ai_client: OpenAI, question: str, query_id: str | None = None
     # ── Bước 5: LLM answer ───────────────────────────────────────────────────
     answer = generate_answer(
         ai_client, question, context_nodes, traversal_paths,
-        intent=intent, community_def=community_def,
+        intent=intent, community_def=community_def, history=history,
     )
     print(f"\nA: {answer}")
 
@@ -3246,8 +3278,8 @@ def _build_record(
 # RUN PIPELINE 
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_pipeline(question: str, query_id: str) -> dict:
-    return kg_ask(driver, ai_client, question, query_id=query_id)
+def run_pipeline(question: str, query_id: str, history: list[dict] | None = None) -> dict:
+    return kg_ask(driver, ai_client, question, query_id=query_id, history=history)
 
 # FASTAPI ENDPOINTS
 
@@ -3329,6 +3361,30 @@ async def ask(request: Request):
             },
             headers=CORS_HEADERS,
         )
+    
+    if detect_tuition_question(question):
+        tuition_answer = (
+            "Mình rất tiếc, hiện tại mình **không có thông tin về học phí** tại NEU. 🙏\n\n"
+            "Để biết mức học phí chính xác và cập nhật nhất, bạn vui lòng:\n"
+            "- Truy cập trang chính thức: [neu.edu.vn](https://neu.edu.vn)\n"
+            "- Liên hệ **Phòng Đào tạo** hoặc **Phòng Kế hoạch – Tài chính** của trường\n"
+            "- Hoặc gọi đường dây hỗ trợ tuyển sinh của NEU để được tư vấn trực tiếp.\n\n"
+            "Nếu bạn có câu hỏi khác về chương trình đào tạo, ngành học hay điểm chuẩn, mình sẵn sàng hỗ trợ! 😊"
+        )
+        return JSONResponse(
+            content={
+                "session_id":       session_id,
+                "status":           "success",
+                "content_markdown": tuition_answer,
+                "debug": {
+                    "query_id":   "tuition_not_supported",
+                    "keywords":   [],
+                    "intent":     {"asked_label": "TUITION"},
+                    "node_count": 0,
+                },
+            },
+            headers=CORS_HEADERS,
+        )
 
     # ── Kiểm tra câu hỏi xem file CTĐT ──────────────────────────────────────────
     ctdt_major = detect_ctdt_question(question)
@@ -3355,13 +3411,22 @@ async def ask(request: Request):
 
     try:
         query_id = "q" + uuid.uuid4().hex[:6]
-        result   = run_pipeline(question, query_id)
+
+        # Lấy lịch sử 5 lượt gần nhất của session này
+        session_history = list(_conversation_memory[session_id])
+        result = run_pipeline(question, query_id, history=session_history if session_history else None)
+
+        answer = result["generated_answer"]
+
+        # Lưu lượt hội thoại vừa xong vào memory
+        _conversation_memory[session_id].append({"role": "user",      "content": question})
+        _conversation_memory[session_id].append({"role": "assistant", "content": answer})
 
         return JSONResponse(
             content={
                 "session_id":       session_id,
                 "status":           "success",
-                "content_markdown": result["generated_answer"],
+                "content_markdown": answer,
                 "debug": {
                     "query_id":   result["query_id"],
                     "keywords":   result["keywords"],
