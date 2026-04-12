@@ -292,7 +292,7 @@ def format_admission_answer(question: str, programs: list[dict]) -> str:
         if want_diem and not want_chitieu:
             if diem_str is None:
                 return f"- **{ten}** (mã {ma}): chương trình này chưa cập nhật điểm chuẩn"
-            return f"- **{ten}** (mã {ma}): điểm chuẩn 2026 là **{diem_str}**"
+            return f"- **{ten}** (mã {ma}): điểm chuẩn 2025 là **{diem_str}**"
         if want_chitieu and not want_diem:
             return f"- **{ten}** (mã {ma}): chỉ tiêu **{ct} sinh viên**"
         # Hỏi cả hai hoặc tổng quát
