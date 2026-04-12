@@ -1591,6 +1591,15 @@ _NEGATED_CAREER_PATTERN = re.compile(
     r"(?:không|ko|chẳng|không muốn).{0,20}\b(sale|marketing)\b",
     re.IGNORECASE | re.UNICODE,
 )
+# Pattern nhận diện "ngành nào không cần/yêu cầu [kỹ năng/môn/lĩnh vực X]"
+# VD: "ngành nào không cần lập trình", "ngành nào không yêu cầu tiếng Anh"
+_MAJOR_EXCLUDE_SKILL_PATTERN = re.compile(
+    r"ng[àa]nh\s*(n[àa]o)?.{0,20}(kh[oô]ng\s*(c[aầ]n|y[eê]u\s*c[aầ]u|đ[oò]i|ph[aả]i)|"
+    r"kh[oô]ng\s*c[aầ]n\s*ph[aả]i|mi[eễ]n\s*(kh[oô]ng\s*)?ph[aả]i|kh[oô]ng\s*dùng)"
+    r".{0,40}",
+    re.IGNORECASE | re.UNICODE,
+)
+
 _CAREER_ALIAS_HINTS: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"\b(tester|qa|quality assurance|kiểm thử)\b", re.IGNORECASE | re.UNICODE),
      ["kiểm thử", "tester", "quality assurance"]),
@@ -1703,6 +1712,12 @@ def apply_intent_rules(question: str, intent: dict) -> dict:
         if asked in ("UNKNOWN", "CAREER") and not has_direct_career_alias:
             asked = "MAJOR"
 
+    # Rule 2c: "ngành nào không cần/yêu cầu [X]" → force asked=MAJOR, X vào negated
+    if _MAJOR_EXCLUDE_SKILL_PATTERN.search(q):
+        asked = "MAJOR"
+        if "MAJOR" not in mentioned:
+            mentioned.append("MAJOR")
+
     # Rule 3: câu mơ hồ nhưng có dấu hiệu nghề + tính cách/skill => hỏi nghề.
     if asked == "UNKNOWN":
         if _CAREER_CUE_PATTERN.search(q):
@@ -1730,7 +1745,11 @@ def apply_intent_rules(question: str, intent: dict) -> dict:
         else:
             priority = ["SKILL", "MAJOR", "PERSONALITY", "CAREER", "SUBJECT", "TEACHER"]
     elif asked == "MAJOR":
-        priority = ["PERSONALITY", "SKILL", "CAREER", "MAJOR", "SUBJECT", "TEACHER"]
+        if negated:
+            # Có phủ định (không cần X) → ưu tiên MAJOR đầu tiên để query ngành là chính
+            priority = ["MAJOR", "SKILL", "PERSONALITY", "CAREER", "SUBJECT", "TEACHER"]
+        else:
+            priority = ["PERSONALITY", "SKILL", "CAREER", "MAJOR", "SUBJECT", "TEACHER"]
     elif asked == "PERSONALITY":
         if re.search(r"hợp làm|hợp nghề|làm\s+\w+", q_lower, re.IGNORECASE):
             priority = ["CAREER", "MAJOR", "PERSONALITY", "SKILL", "SUBJECT", "TEACHER"]
@@ -1755,6 +1774,20 @@ def get_relationship_constraint(intent: dict) -> str:
     mentioned = intent.get("mentioned_labels", [])
     asked     = intent.get("asked_label", "UNKNOWN")
     is_comp   = intent.get("is_comparison", False)
+    negated   = intent.get("negated_keywords", [])
+
+    # asked=MAJOR + có phủ định → "ngành nào KHÔNG cần/yêu cầu [X]"
+    if asked == "MAJOR" and negated:
+        excl = ", ".join(negated)
+        return (
+            f"Người dùng hỏi ngành học KHÔNG cần/yêu cầu: {excl}. "
+            "Từ [DỮ LIỆU GRAPH], liệt kê các node MAJOR (tên ngành + mã ngành). "
+            "Ưu tiên ngành mà chương trình học (MAJOR_OFFERS_SUBJECT→SUBJECT→PROVIDES→SKILL) "
+            f"KHÔNG có kỹ năng '{excl}' hoặc không có môn chuyên về '{excl}'. "
+            "Nếu câu hỏi có 'trừ [ngành X]' → loại bỏ ngành đó khỏi danh sách. "
+            "ĐỊNH DẠNG BẮT BUỘC: bảng markdown | STT | Tên ngành | Mã ngành |. "
+            "TUYỆT ĐỐI không liệt kê CAREER, SKILL hay vị trí công việc — chỉ MAJOR."
+        )
 
     if is_comp and "MAJOR" in mentioned:
         return RELATIONSHIP_CONSTRAINTS.get(("MAJOR", "MAJOR"), "")
