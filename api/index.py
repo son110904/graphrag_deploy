@@ -111,6 +111,33 @@ _ADMISSION_PATTERN = re.compile(
 )
 
 
+# Từ điển đồng nghĩa/biến thể tên ngành thường gặp → tên chuẩn trong ADMISSION_DATA
+_MAJOR_SYNONYMS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"kinh\s*doanh\s*nông\s*nghiệp", re.IGNORECASE | re.UNICODE), "kinh tế nông nghiệp"),
+    (re.compile(r"quản\s*trị\s*nông\s*nghiệp",   re.IGNORECASE | re.UNICODE), "kinh tế nông nghiệp"),
+    (re.compile(r"tài\s*chính\s*doanh\s*nghiệp", re.IGNORECASE | re.UNICODE), "tài chính ngân hàng"),
+    (re.compile(r"ngân\s*hàng\s*số",               re.IGNORECASE | re.UNICODE), "công nghệ tài chính và ngân hàng số"),
+    (re.compile(r"cntt|công\s*nghệ\s*tt",          re.IGNORECASE | re.UNICODE), "công nghệ thông tin"),
+    (re.compile(r"khoa\s*học\s*máy\s*tính",       re.IGNORECASE | re.UNICODE), "công nghệ thông tin"),
+    (re.compile(r"kỹ\s*thuật\s*điện\s*tử",        re.IGNORECASE | re.UNICODE), "kỹ thuật phần mềm"),
+    (re.compile(r"marketing\s*số|digital\s*marketing", re.IGNORECASE | re.UNICODE), "marketing số"),
+    (re.compile(r"pr\b|quan\s*hệ\s*công\s*chúng", re.IGNORECASE | re.UNICODE), "quan hệ công chúng"),
+    (re.compile(r"logistics\b(?!.*chuỗi)",           re.IGNORECASE | re.UNICODE), "logistics và quản lý chuỗi cung ứng"),
+    (re.compile(r"thương\s*mại\s*điện\s*tử|tmđt|e-commerce", re.IGNORECASE | re.UNICODE), "thương mại điện tử"),
+    (re.compile(r"kinh\s*tế\s*số(?!.*dự\s*kiến)",  re.IGNORECASE | re.UNICODE), "kinh tế số"),
+    (re.compile(r"trí\s*tuệ\s*nhân\s*tạo|ai\b|artificial\s*intelligence", re.IGNORECASE | re.UNICODE), "trí tuệ nhân tạo"),
+    (re.compile(r"khoa\s*học\s*dữ\s*liệu|data\s*science", re.IGNORECASE | re.UNICODE), "khoa học dữ liệu"),
+]
+
+
+def _apply_major_synonyms(question: str) -> str:
+    """Thay thế biến thể tên ngành trong câu hỏi bằng tên chuẩn trước khi tìm kiếm."""
+    q = question
+    for pattern, canonical in _MAJOR_SYNONYMS:
+        q = pattern.sub(canonical, q)
+    return q
+
+
 def search_admission_data(question: str) -> list[dict]:
     """
     Tìm chương trình trong ADMISSION_DATA khớp với câu hỏi.
@@ -121,6 +148,7 @@ def search_admission_data(question: str) -> list[dict]:
          rồi so khớp trực tiếp substring với ten_chuong_trinh / ten_nganh
       4. Fallback: scoring từng từ nếu không có match trực tiếp
     """
+    question = _apply_major_synonyms(question)
     q_lower = question.lower()
     is_broad_program_request = bool(re.search(
         r"t[aấ]t\s*c[aả]|to[aà]n\s*b[ộo]|li[eê]t\s*k[eê]|danh\s*s[aá]ch|c[aá]c\s*chương\s*trình|c[aá]c\s*hệ",
@@ -2768,7 +2796,11 @@ _ADMISSION_INFO_PATTERN = re.compile(
     r"|ưu\s*tiên\s*khu\s*vực|ưu\s*tiên\s*đối\s*tượng|kv1|kv2|kv3"
     r"|liên\s*thông|học\s*phí.{0,20}(neu|trường|năm\s*học)"
     r"|open\s*day|tư\s*vấn\s*tuyển\s*sinh|hotline\s*tuyển\s*sinh"
-    r"|neu\s*2026|tuyển\s*sinh\s*2026|ngành\s*mới\s*2026|chương\s*trình\s*mới\s*2026",
+    r"|neu\s*2026|tuyển\s*sinh\s*2026|ngành\s*mới\s*2026|chương\s*trình\s*mới\s*2026"
+    # Câu hỏi về biến động điểm chuẩn — redirect sang agent tuyển sinh
+    r"|tăng\s*điểm|giảm\s*điểm|điểm\s*(có\s*)?(tăng|giảm|thay\s*đổi|biến\s*động)"
+    r"|điểm\s*chuẩn.{0,30}(tăng|giảm|cao\s*hơn|thấp\s*hơn|thay\s*đổi)"
+    r"|(tăng|giảm|thay\s*đổi).{0,30}điểm\s*chuẩn",
     re.IGNORECASE | re.UNICODE,
 )
 
