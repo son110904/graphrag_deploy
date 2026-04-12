@@ -2937,19 +2937,7 @@ _OFF_TOPIC_PATTERNS = [
         r"|tỉ số|tỷ số|chung kết|vô địch|huy chương|olympic|seagame|sea game"
         r"|cầu thủ|vận động viên|hlv|huấn luyện viên đội",
         re.IGNORECASE | re.UNICODE,
-    ),
-    # Chính trị
-    re.compile(r"bầu cử|tổng thống|thủ tướng|quốc hội|đảng phái|chiến tranh|xung đột", re.IGNORECASE | re.UNICODE),
-    # Kỹ thuật ngoài phạm vi
-    re.compile(r"sửa máy tính|cài windows|sửa điện thoại|hack|virus máy tính", re.IGNORECASE | re.UNICODE),
-    # Tình cảm
-    re.compile(r"người yêu|tình yêu|chia tay|cưới|hôn nhân|tâm sự|buồn quá|cô đơn", re.IGNORECASE | re.UNICODE),
-    # Du lịch thuần túy
-    re.compile(r"đặt vé|vé máy bay|khách sạn (?:tốt|rẻ|ở đâu)|du lịch (?:ở đâu|bao nhiêu tiền|mấy ngày)", re.IGNORECASE | re.UNICODE),
-    # Tài chính cá nhân
-    re.compile(r"mua cổ phiếu nào|đầu tư vào đâu|bitcoin|crypto|giá vàng|tỷ giá hôm nay", re.IGNORECASE | re.UNICODE),
-    # Misc: dịch thuật, truyện, công thức toán thuần túy ngoài học thuật
-    re.compile(r"dịch sang tiếng|translate|kể chuyện|viết truyện|viết thơ|tử vi|horoscope", re.IGNORECASE | re.UNICODE),
+    )
 ]
 
 # Từ khóa "safe" — nếu câu hỏi chứa các từ này thì KHÔNG phải off-topic dù match pattern trên
