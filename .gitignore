@@ -1,2 +1,4 @@
 .env
 test_concurrent_requests.py
+__pycache__/
+*.pyc
