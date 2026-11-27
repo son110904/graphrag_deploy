@@ -4,7 +4,6 @@ import json
 import uuid
 import datetime
 from pathlib import Path
-from collections import defaultdict, deque
 from neo4j import GraphDatabase
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -44,6 +43,11 @@ from .services.guards import (  # noqa: E402
     detect_tuition_question,
 )
 from .services.program_types import handle_program_code_comparison_question  # noqa: E402
+from .services.session_store import (  # noqa: E402
+    append_turn,
+    load_session,
+    save_session,
+)
 from .services.intent import (  # noqa: E402
     MBTI_KEYWORD_FALLBACK,
     apply_intent_rules,
@@ -200,16 +204,10 @@ ai_client = OpenAI(api_key=OPENAI_API_KEY)
 driver    = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
 
 # ── Conversation Memory ────────────────────────────────────────────────────────
-# Lưu tối đa 5 lượt hội thoại gần nhất theo session_id
-# Mỗi entry: {"role": "user"/"assistant", "content": str}
-_conversation_memory: dict[str, deque] = defaultdict(lambda: deque(maxlen=10))  # 5 lượt = 10 messages
-
-# Lightweight per-session state for contextualization (no extra LLM calls).
-# Keeps "anchor entities" inferred from previous successful retrievals.
-_session_state: dict[str, dict] = defaultdict(dict)
-
-# Summary memory (short intent snapshot) to reduce prompt noise.
-_session_summary: dict[str, str] = defaultdict(str)
+# Bộ nhớ hội thoại (context window) được LƯU BỀN trong Neo4j — xem
+# services/session_store.py. Mỗi phiên là một node :ChatSession {session_id}
+# lưu history (tối đa 5 lượt), state (anchor entities) và summary.
+# Nhờ vậy ký ức sống qua restart container thay vì nằm trong RAM của process.
 
 app = FastAPI()
 
@@ -2555,9 +2553,8 @@ async def ask(request: Request):
     try:
         query_id = "q" + uuid.uuid4().hex[:6]
 
-        # Lấy lịch sử 5 lượt gần nhất của session này
-        session_history = list(_conversation_memory[session_id])
-        state = _session_state.get(session_id, {})
+        # Nạp bộ nhớ bền của phiên từ Neo4j (history 5 lượt + state + summary)
+        session_history, state, summary = load_session(driver, session_id)
 
         # Pass 1 (cheap): heuristic contextualization using anchors only
         rewritten_q, _anchor_kws, _used_ctx = contextualize_question_with_state(question, state)
@@ -2565,11 +2562,9 @@ async def ask(request: Request):
 
         # Pass 2 (smart but costly): ONLY if vague + graph retrieval empty
         if question_is_vague(question) and len(result.get("retrieved_nodes") or []) == 0:
-            summary = _session_summary.get(session_id, "")
             # Update summary only when we're about to call the LLM (cost control)
             if len(session_history) > 0 and (len(session_history) % 8 == 0):
                 summary = update_session_summary_level2(ai_client, OPENAI_MODEL, summary, session_history)
-                _session_summary[session_id] = summary
 
             rewritten_q2, _anchor_kws2, _used_ctx2 = contextualize_question_level2(
                 ai_client,
@@ -2584,11 +2579,10 @@ async def ask(request: Request):
 
         answer = result["generated_answer"]
 
-        # Lưu lượt hội thoại vừa xong vào memory
-        _conversation_memory[session_id].append({"role": "user",      "content": question})
-        _conversation_memory[session_id].append({"role": "assistant", "content": answer})
-        # Update anchors for next turn (major/subject/career/teacher)
-        _session_state[session_id] = update_session_state_from_result(state, result)
+        # Cập nhật bộ nhớ và GHI BỀN xuống Neo4j cho lượt sau
+        session_history = append_turn(session_history, question, answer)
+        state = update_session_state_from_result(state, result)
+        save_session(driver, session_id, session_history, state, summary)
 
         return JSONResponse(
             content={
